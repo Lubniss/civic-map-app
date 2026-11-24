@@ -5,7 +5,7 @@
 |---|---|
 | 0. Setup | Done: repo, Supabase project (Gmail SMTP, OTP templates, PostGIS in `extensions` schema), .env files filled |
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
-| 2. Server | Not started |
+| 2. Server | Done: Express 5 + TypeScript API, 22 unit tests and 32 smoke checks passing |
 | 3. Mobile | Not started |
 | 4. Fastest vs. Safest Route | Not started |
 | 5. Deploy | Not started |

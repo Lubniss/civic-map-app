@@ -26,4 +26,26 @@ The build plan and current status are in [PLAN.md](PLAN.md).
    node --env-file=server/.env --env-file=mobile/.env supabase/tests/db-test.mjs
    ```
    It uses 4 throwaway users at 0.5°N 0.5°E (in the ocean), checks every rule, then deletes them.
-5. Further steps are added as each phase is built.
+5. **Server** (in `server/`):
+   ```
+   npm install
+   npm test          # unit tests
+   npm run dev       # starts the API on port 4000 and prints the Wi-Fi address for phones
+   npm run smoke     # in a second terminal, while dev is running: calls every endpoint with real logins
+   ```
+6. Further steps are added as each phase is built.
+
+## API (server)
+All routes except `/health` need `Authorization: Bearer <Supabase access token>`. Errors look like `{ "error": { "code", "message" } }`.
+
+| Method & path | What it does |
+|---|---|
+| `GET /health` | Server is up |
+| `GET /alerts?bbox=minLng,minLat,maxLng,maxLat` | Pins: verified alerts and active red zones in view |
+| `GET /alerts/:id` | One alert with its reports, photo links and fix progress |
+| `POST /reports` | `{lat, lng, category, severity, note?, photo_path}`; max 20 a day per user |
+| `POST /alerts/:id/confirm-fix` | `{photo_path, note?}`; 3 people (not the first reporter) resolve it |
+| `GET /heatmap?bbox=...` | Heat points, including pending reports |
+| `GET /summary?bbox=...` or `?lat=&lng=&radius=` | Area headline, risk, breakdown, top issue, latest notes |
+
+Photos are uploaded by the app straight to the private `photos` bucket at `<user_id>/<file>.jpg`, then the path is sent to the API.
