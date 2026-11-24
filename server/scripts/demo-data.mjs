@@ -98,6 +98,27 @@ async function seed(lat, lng) {
   await call(`/rest/v1/alerts?id=eq.${accident.alert_id}`, { method: 'PATCH', body: { hot_until: new Date(Date.now() - 60_000).toISOString() } });
   out.push('Accident: cooled grey zone (grey circle), ~730 m south-west');
 
+  // Hazard hotspots (like real danger, which clusters): 12 tight clusters, each with an unsafe red zone,
+  // a harassment red zone and a verified dark street within ~120 m. 6 clusters ~1 km out and 6 more
+  // ~1.8 km out (rotated 30°), with clear streets between them, so a safer way round usually exists.
+  const notes = {
+    unsafe: ['Isolated lane, no people around at night', 'Men loitering near the corner', 'Snatching reported here'],
+    harassment: ['Catcalling near the bus stop', 'Followed by a group of men', 'Harassment near the market gate'],
+    light: ['Whole stretch is dark at night', 'Streetlights broken for weeks', 'No lights on this road'],
+  };
+  let hotspots = 0;
+  for (const [ri, radius] of [1000, 1800].entries()) {
+    for (let k = 0; k < 6; k++) {
+      const angle = ((k * 60 + ri * 30) * Math.PI) / 180;
+      const hub = at(c, radius * Math.cos(angle), radius * Math.sin(angle));
+      await report([u4, u1, u2][k % 3], at(hub, 40, -40), 'unsafe', 3, notes.unsafe[k % 3], 'now');
+      await report([u1, u2, u4][k % 3], at(hub, -50, 30), 'harassment', 3, notes.harassment[k % 3], 'now');
+      for (const [j, u] of three.entries()) await report(u, at(hub, 10 + j * 12, 60), 'light', 2, notes.light[k % 3]);
+      hotspots++;
+    }
+  }
+  out.push(`${hotspots} hazard hotspots (~1 km and ~1.8 km out), each an unsafe + harassment red zone and a dark street`);
+
   console.log(`\nDemo alerts added around ${lat}, ${lng}:`);
   for (const line of out) console.log(`  - ${line}`);
   console.log('\nRemove them later with: npm run demo -- clear\n');

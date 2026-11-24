@@ -244,6 +244,9 @@ Done before the phone app, so the app is built on the final rules and no data ne
   - **Civic problems:** compact 2×2 cards with tinted borders and helpers.
   - **"Other issue"** is a slim row.
   - Every card scales and dims slightly when pressed.
+- **Centre "+" button:** a tap reports a problem. **Holding** it fills it red with a phone icon, and at 1.5 s it opens the dialer with 112; releasing early cancels. Screen readers get a "Call 112" action with a confirmation.
+- **Map search bar** across the top ("Search a place or plan a safe route"). Tapping it switches to Routes with "Where to?" focused. SOS and the map controls sit just below it.
+- **Demo data** (`npm run demo -- seed`): 8 mixed alerts plus **12 hazard hotspots** (an unsafe red zone, a harassment red zone and a dark street each) about 1 km and 1.8 km out, with clear streets between them, so safer routes exist. Uniform rings were tried first, but made every detour equally risky.
 
 **Typography and layout:**
 - One locked font pairing loaded with `expo-font`: **Poppins** for headings and numbers (as in image 2), **Inter** for body text. Text never falls back to random system fonts.
@@ -360,7 +363,18 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - **The app never calls ORS directly;** the key stays on the server.
 - **Before this phase,** the user creates a free ORS account and puts the key in `server/.env` as `ORS_API_KEY`.
 
-**Candidate routes:** up to 3 normal alternatives, plus one "avoid hazards" route requested with `avoid_polygons` (60 m circles around red zones, hot grey zones and verified high-weight alerts near the straight line between start and destination). A safer option then exists even when the provider returns only one route.
+**Candidate routes:** up to 3 normal alternatives, plus one "avoid hazards" route requested with `avoid_polygons`. A safer option then exists even when the provider returns only one route.
+
+*Revised after live testing:* the avoid circles are built **around the dangerous alerts actually on the fastest route**, in TypeScript (`hazardCircles`, `mergeCircles`, `circlesToGeoJson`):
+- Only alerts worth at least 2 points count, top 8 by points.
+- Each circle's radius is the alert's distance from the route + 25 m (50–160 m), so it actually covers the road.
+- Overlapping circles are merged, and circles covering the start or destination are skipped.
+- If no way round exists, the least dangerous third of the circles is dropped and it retries, up to 3 tries.
+- The corridor-wide `hazard_avoid_polygons` (60 m) approach either blocked every path (404) or missed the road, so it's no longer used. The SQL function stays in the database.
+
+**"Worth the detour" rule:**
+- A separate safest route is only offered if it cuts risk by **≥ 25% and ≥ 5 points**, and adds **≤ max(15 min, 60% of the trip)**.
+- Otherwise the response says, for example, "No safer route is worth the detour (best option: +148 min). Take care on this route."
 
 **Database (`003_routes.sql`):**
 - `alerts_near_route(route, buffer_m = 150)` returns visible alerts (verified, red zones, grey zones) within 150 m of the route, with category, status, hot flag, avg_severity, location and distance.

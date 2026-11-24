@@ -7,7 +7,7 @@ import { AppText } from './AppText';
 
 export const HOLD_MS = 1500;
 
-async function dial112() {
+export async function dial112() {
   try {
     await Linking.openURL('tel:112');
   } catch {

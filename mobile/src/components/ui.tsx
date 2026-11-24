@@ -116,13 +116,22 @@ export function Segmented<T extends string>({
   );
 }
 
-/** Pressable with tactile feedback: dips to 96% scale and 85% opacity while pressed. */
-export function PressableScale({ style, children, ...rest }: Omit<PressableProps, 'style'> & { style?: ViewProps['style']; children: ReactNode }) {
+/**
+ * Pressable with tactile feedback: dips to 96% scale and 85% opacity while pressed.
+ * `outerStyle` sizes the touch area in its parent (e.g. width: '48%' in a grid);
+ * `style` is the card's own look (background, border, padding…).
+ */
+export function PressableScale({ style, outerStyle, children, ...rest }: Omit<PressableProps, 'style'> & {
+  style?: ViewProps['style'];
+  outerStyle?: ViewProps['style'];
+  children: ReactNode;
+}) {
   const scale = useRef(new Animated.Value(1)).current;
   const animate = (to: number) => Animated.spring(scale, { toValue: to, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
   return (
     <Pressable
       {...rest}
+      style={outerStyle}
       onPressIn={(e) => { animate(0.96); rest.onPressIn?.(e); }}
       onPressOut={(e) => { animate(1); rest.onPressOut?.(e); }}
     >

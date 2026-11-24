@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
@@ -60,6 +60,15 @@ export default function RoutesScreen() {
   const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [selected, setSelected] = useState<Which>('safest');
   const debounced = useDebounced(query.trim(), 350);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
+
+  // Arriving from the map's search bar: put the cursor straight into "Where to?".
+  useEffect(() => {
+    if (!focus) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 250);
+    return () => clearTimeout(t);
+  }, [focus]);
   const pickedName = useStreetName(picking ? center : null);
 
   useEffect(() => {
@@ -212,6 +221,7 @@ export default function RoutesScreen() {
               </View>
               <View style={[styles.searchBox, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
                 <TextInput
+                  ref={inputRef}
                   value={query}
                   onChangeText={(t) => { setQuery(t); if (destination) { setDestination(null); plan.reset(); } }}
                   placeholder="Where to?"

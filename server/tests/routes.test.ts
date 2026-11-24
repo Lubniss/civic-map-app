@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Category } from '../src/categories.js';
 import { alertPoints, closenessFactor, riskLevel, scoreRoute, statusFactor, type NearbyAlert } from '../src/risk.js';
-import { explain, isSameRoute, pickRoutes, simplify, timeDiffText, type ScoredRoute } from '../src/routePlanner.js';
+import { circlesToGeoJson, explain, hazardCircles, isSameRoute, mergeCircles, pickRoutes, simplify, timeDiffText, type ScoredRoute } from '../src/routePlanner.js';
 
 let n = 0;
 const alert = (category: Category, extra: Partial<NearbyAlert> = {}): NearbyAlert => ({
@@ -109,8 +109,57 @@ describe('route selection', () => {
     expect(explain(fast, safe, false)).toBe('Lower-risk streets; +1 min');
   });
 
+  it('does not offer a detour that is far longer for little gain', () => {
+    const fast = route(4140, 5000, [alert('unsafe'), alert('unsafe'), alert('harassment'), alert('light'), alert('road')]);
+    const huge = route(13080, 15000, [alert('unsafe'), alert('unsafe'), alert('harassment'), alert('light')]); // +149 min
+    const plan = pickRoutes([fast, huge])!;
+    expect(plan.sameRoute).toBe(true);
+    expect(plan.safest).toBe(fast);
+    expect(plan.explanation).toBe('No safer route is worth the detour (best option: +149 min). Take care on this route.');
+  });
+
+  it('does not offer a detour that cuts risk by less than 25%', () => {
+    const fast = route(1860, 2000, [alert('unsafe'), alert('light'), alert('road')]); // 20 + 12 + 4 = 36
+    const slightly = route(1900, 2100, [alert('unsafe'), alert('light')]); // 32, only 11% less
+    expect(pickRoutes([fast, slightly])!.sameRoute).toBe(true);
+  });
+
+  it('offers a detour that is clearly safer and not much longer', () => {
+    const fast = route(2640, 3000, [alert('unsafe'), alert('harassment'), alert('light')]); // 52
+    const safe = route(3540, 3900, [alert('light')]); // 12, +15 min
+    const plan = pickRoutes([fast, safe])!;
+    expect(plan.sameRoute).toBe(false);
+    expect(plan.safest).toBe(safe);
+  });
+
   it('returns nothing when there are no routes', () => {
     expect(pickRoutes([])).toBeNull();
+  });
+});
+
+describe('avoid circles', () => {
+  const origin = { lat: 28.47, lng: 77.47 };
+  const dest = { lat: 28.49, lng: 77.49 };
+  it('sizes circles to reach the road, skips weak alerts and ones covering start/destination', () => {
+    const cs = hazardCircles([
+      { ...alert('unsafe', { lat: 28.48, lng: 77.48, distance_m: 100 }), points: 15 },
+      { ...alert('garbage', { lat: 28.481, lng: 77.48, distance_m: 0 }), points: 1 },
+      { ...alert('harassment', { lat: 28.4701, lng: 77.4701, distance_m: 10 }), points: 20 },
+    ], origin, dest);
+    expect(cs).toHaveLength(1);
+    expect(cs[0]!.radiusM).toBe(125);
+  });
+  it('merges overlapping circles and outputs valid GeoJSON', () => {
+    const merged = mergeCircles([
+      { lat: 28.48, lng: 77.48, radiusM: 100, weight: 10 },
+      { lat: 28.4805, lng: 77.48, radiusM: 100, weight: 5 },
+      { lat: 28.49, lng: 77.48, radiusM: 60, weight: 3 },
+    ]);
+    expect(merged).toHaveLength(2);
+    const g = JSON.parse(circlesToGeoJson(merged)!);
+    expect(g.type).toBe('MultiPolygon');
+    expect(g.coordinates[0][0]).toHaveLength(17);
+    expect(g.coordinates[0][0][0]).toEqual(g.coordinates[0][0][16]);
   });
 });
 

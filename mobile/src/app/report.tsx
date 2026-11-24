@@ -245,6 +245,7 @@ function EmergencyCard({ category, onPress }: { category: Category; onPress: () 
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${categories[category].label}: ${categories[category].hint}`}
+      outerStyle={styles.half}
       style={[styles.emergencyCard, { backgroundColor: c.tint, borderColor: `${c.fill}55` }]}
     >
       <IconBadge category={category} />
@@ -265,6 +266,7 @@ function CivicCard({ category, onPress }: { category: Category; onPress: () => v
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${categories[category].label}: ${categories[category].hint}`}
+      outerStyle={styles.half}
       style={[styles.civicCard, { backgroundColor: colors.card, borderColor: `${c.fill}40` }]}
     >
       <IconBadge category={category} size={38} />
@@ -613,8 +615,10 @@ const styles = StyleSheet.create({
   sectionRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   instantPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
   instantDot: { width: 6, height: 6, borderRadius: 3 },
-  emergencyCard: { width: '48%', flexGrow: 1, minHeight: 128, borderRadius: radius.card, borderWidth: 1.5, padding: space.lg, gap: space.md, justifyContent: 'space-between' },
-  civicCard: { width: '48%', flexGrow: 1, minHeight: 72, borderRadius: radius.card, borderWidth: 1.5, padding: space.md, gap: space.sm, flexDirection: 'row', alignItems: 'center' },
+  /** Grid cell: two per row. Width lives on the touch area so the grid lays out correctly. */
+  half: { width: '48%', flexGrow: 1 },
+  emergencyCard: { flex: 1, minHeight: 128, borderRadius: radius.card, borderWidth: 1.5, padding: space.lg, gap: space.md, justifyContent: 'space-between' },
+  civicCard: { flex: 1, minHeight: 72, borderRadius: radius.card, borderWidth: 1.5, padding: space.md, gap: space.sm, flexDirection: 'row', alignItems: 'center' },
   otherRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, borderRadius: radius.card, borderWidth: 1, paddingHorizontal: space.md, paddingVertical: space.md },
   iconBtn: { width: size.touch, height: size.touch, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },

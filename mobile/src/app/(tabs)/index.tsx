@@ -22,6 +22,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { radius, size, space } from '@/theme/tokens';
 
 const NEARBY_DELTA = 0.02; // ~2 km across
+const SEARCH_HEIGHT = 48;
 
 export default function MapScreen() {
   const { colors, scheme, isDark } = useTheme();
@@ -87,7 +88,8 @@ export default function MapScreen() {
   }, [bbox, summary.isPending, summary.isError, summary.error, summary.data]);
 
   const mapStyle = useMemo(() => googleMapStyle(scheme), [scheme]);
-  const controlsTop = insets.top + space.sm;
+  const searchTop = insets.top + space.sm;
+  const controlsTop = searchTop + SEARCH_HEIGHT + space.md;
   const bottomRowY = tabBarTop + size.fabLift + space.lg;
 
   return (
@@ -112,6 +114,24 @@ export default function MapScreen() {
           ? (alerts.data ?? []).map((a) => <AlertMarker key={a.id} alert={a} onPress={setSelected} />)
           : <HeatLayer points={heat.data ?? []} />}
       </MapView>
+
+      {/* Top: search bar. Tapping it switches to Routes with "Where to?" focused. */}
+      <Pressable
+        onPress={() => router.navigate({ pathname: '/routes', params: { focus: String(Date.now()) } })}
+        accessibilityRole="search"
+        accessibilityLabel="Search a place or plan a safe route"
+        style={({ pressed }) => [
+          styles.search,
+          { top: searchTop, backgroundColor: colors.card, borderColor: colors.border, transform: [{ scale: pressed ? 0.99 : 1 }] },
+          !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+        ]}
+      >
+        <Ionicons name="search" size={18} color={colors.textMuted} />
+        <AppText variant="body" color="muted" style={{ flex: 1 }} numberOfLines={1}>Search a place or plan a safe route</AppText>
+        <View style={[styles.searchBadge, { backgroundColor: colors.cardAlt }]}>
+          <Ionicons name="navigate-circle" size={18} color={colors.accentText} />
+        </View>
+      </Pressable>
 
       {/* Zone warning banner: between the SOS button and the right-hand controls, so neither is covered */}
       <View style={[styles.banner, { top: controlsTop }]} pointerEvents="box-none">
@@ -258,6 +278,20 @@ function RoundButton({ icon, label, onPress }: { icon: React.ComponentProps<type
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   areaWrap: { position: 'absolute', right: space.lg },
+  search: {
+    position: 'absolute',
+    left: space.lg,
+    right: space.lg,
+    height: SEARCH_HEIGHT,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingLeft: space.lg,
+    paddingRight: space.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+  },
+  searchBadge: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   banner: { position: 'absolute', left: space.lg + size.mapButton + space.md, right: space.lg + size.mapButton + 4 + space.md },
   left: { position: 'absolute', left: space.lg },
   right: { position: 'absolute', right: space.lg, gap: space.md },

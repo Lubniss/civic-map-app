@@ -29,13 +29,42 @@ export function isSameRoute(a: ScoredRoute, b: ScoredRoute): boolean {
   return b.alerts.every((x) => idsA.has(x.id)) && a.alerts.length === b.alerts.length;
 }
 
+/** A safer route is only offered if it cuts risk by ≥ 25% and ≥ 5 points… */
+export const MIN_RISK_CUT_RATIO = 0.25;
+export const MIN_RISK_CUT_POINTS = 5;
+/** …and adds no more than max(15 min, 60% of the fastest trip). */
+export const MAX_EXTRA_S = 15 * 60;
+export const MAX_EXTRA_RATIO = 0.6;
+
+/** Is this safer route worth the extra time compared with the fastest? */
+export function worthTheDetour(fastest: ScoredRoute, candidate: ScoredRoute): boolean {
+  const cut = fastest.riskScore - candidate.riskScore;
+  if (cut < MIN_RISK_CUT_POINTS || cut < fastest.riskScore * MIN_RISK_CUT_RATIO) return false;
+  const extra = candidate.durationS - fastest.durationS;
+  return extra <= Math.max(MAX_EXTRA_S, fastest.durationS * MAX_EXTRA_RATIO);
+}
+
 export function pickRoutes(routes: ScoredRoute[]): Plan | null {
   if (!routes.length) return null;
   const fastest = [...routes].sort((a, b) => a.durationS - b.durationS || a.riskScore - b.riskScore)[0]!;
-  const safest = [...routes].sort((a, b) => a.riskScore - b.riskScore || a.durationS - b.durationS)[0]!;
-  const same = isSameRoute(fastest, safest) || safest.riskScore >= fastest.riskScore;
-  const chosenSafest = same ? fastest : safest;
-  return { fastest, safest: chosenSafest, sameRoute: same, explanation: explain(fastest, chosenSafest, same) };
+  // Safest = lowest risk among the routes that are worth the detour (ties → shorter).
+  const worth = routes.filter((r) => r !== fastest && !isSameRoute(fastest, r) && worthTheDetour(fastest, r));
+  const safest = worth.sort((a, b) => a.riskScore - b.riskScore || a.durationS - b.durationS)[0];
+  if (!safest) {
+    // Mention a rejected detour so the user knows we looked.
+    const rejected = routes
+      .filter((r) => r !== fastest && !isSameRoute(fastest, r) && r.riskScore < fastest.riskScore)
+      .sort((a, b) => a.riskScore - b.riskScore)[0];
+    return { fastest, safest: fastest, sameRoute: true, explanation: explainSame(fastest, rejected) };
+  }
+  return { fastest, safest, sameRoute: false, explanation: explain(fastest, safest, false) };
+}
+
+function explainSame(fastest: ScoredRoute, rejected: ScoredRoute | undefined): string {
+  if (rejected) {
+    return `No safer route is worth the detour (best option: ${timeDiffText(rejected, fastest)}). Take care on this route.`;
+  }
+  return explain(fastest, fastest, true);
 }
 
 const PHRASE: Record<Category, [string, string]> = {
@@ -79,6 +108,80 @@ export function explain(fastest: ScoredRoute, safest: ScoredRoute, sameRoute: bo
   const time = timeDiffText(safest, fastest);
   if (!parts.length) return `Lower-risk streets; ${time}`;
   return `Avoids ${joinList(parts)}; ${time}`;
+}
+
+// ---------------- Avoid circles (steer around hazards on the fastest route) ----------------
+export interface AvoidCircle {
+  lat: number;
+  lng: number;
+  radiusM: number;
+  weight: number;
+}
+
+const M_PER_DEG = 111_320;
+const metresBetween = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+  const dLat = (a.lat - b.lat) * M_PER_DEG;
+  const dLng = (a.lng - b.lng) * M_PER_DEG * Math.cos(((a.lat + b.lat) / 2) * (Math.PI / 180));
+  return Math.hypot(dLat, dLng);
+};
+
+/**
+ * Circles around the most dangerous alerts on a route, sized to reach the road
+ * (distance from the route + 25 m, 50–160 m), skipping any that would cover the start or destination.
+ */
+export function hazardCircles(
+  alerts: (NearbyAlert & { points: number })[],
+  origin: { lat: number; lng: number },
+  destination: { lat: number; lng: number },
+  max = 8,
+): AvoidCircle[] {
+  return alerts
+    .filter((a) => a.points >= 2)
+    .sort((a, b) => b.points - a.points)
+    .map((a) => ({ lat: a.lat, lng: a.lng, radiusM: Math.min(160, Math.max(50, a.distance_m + 25)), weight: a.points }))
+    .filter((c) => metresBetween(c, origin) > c.radiusM + 15 && metresBetween(c, destination) > c.radiusM + 15)
+    .slice(0, max);
+}
+
+/** Overlapping circles are merged into one circle covering both (valid, non-overlapping polygons). */
+export function mergeCircles(circles: AvoidCircle[]): AvoidCircle[] {
+  const out = circles.map((c) => ({ ...c }));
+  let merged = true;
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < out.length; i++) {
+      for (let j = i + 1; j < out.length; j++) {
+        const a = out[i]!;
+        const b = out[j]!;
+        const d = metresBetween(a, b);
+        if (d < a.radiusM + b.radiusM) {
+          const r = (d + a.radiusM + b.radiusM) / 2;
+          const t = d === 0 ? 0 : (r - a.radiusM) / d;
+          out[i] = { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t, radiusM: Math.min(r, 400), weight: a.weight + b.weight };
+          out.splice(j, 1);
+          merged = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** 16-sided circles as a GeoJSON MultiPolygon string for the routing provider's avoid_polygons. */
+export function circlesToGeoJson(circles: AvoidCircle[], segments = 16): string | null {
+  if (!circles.length) return null;
+  const polys = circles.map((c) => {
+    const ring: [number, number][] = [];
+    for (let i = 0; i <= segments; i++) {
+      const a = (i / segments) * 2 * Math.PI;
+      const dLat = (c.radiusM * Math.sin(a)) / M_PER_DEG;
+      const dLng = (c.radiusM * Math.cos(a)) / (M_PER_DEG * Math.cos((c.lat * Math.PI) / 180));
+      ring.push([Number((c.lng + dLng).toFixed(6)), Number((c.lat + dLat).toFixed(6))]);
+    }
+    return [ring];
+  });
+  return JSON.stringify({ type: 'MultiPolygon', coordinates: polys });
 }
 
 /** Douglas–Peucker simplification (~tolerance in degrees; 0.00005 ≈ 5 m) to keep responses small. */

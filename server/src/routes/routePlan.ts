@@ -5,12 +5,14 @@ import { me } from '../auth.js';
 import { db } from '../db.js';
 import { ApiError, fromDbError } from '../errors.js';
 import { distanceM } from '../geo.js';
-import { scoreRoute, type NearbyAlert } from '../risk.js';
-import { pickRoutes, simplify, type ScoredRoute } from '../routePlanner.js';
+import { alertPoints, scoreRoute, type NearbyAlert } from '../risk.js';
+import { circlesToGeoJson, hazardCircles, mergeCircles, pickRoutes, simplify, type ScoredRoute } from '../routePlanner.js';
 import { getAvoidRoute, getRoutes, reversePlace, searchPlaces, type ProviderRoute } from '../routing.js';
 import { parse } from '../schemas.js';
 
 export const MAX_TRIP_M = 50_000;
+/** How many times to try the "avoid hazards" route, dropping the least dangerous circles each time. */
+export const AVOID_ATTEMPTS = 3;
 export const routePlanRouter = Router();
 
 const point = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
@@ -64,33 +66,36 @@ routePlanRouter.post('/routes/plan', planLimiter, async (req, res) => {
   const from: [number, number] = [body.origin.lng, body.origin.lat];
   const to: [number, number] = [body.destination.lng, body.destination.lat];
 
-  // 1. Normal routes (fastest + alternatives) and the hazard circles, in parallel.
-  const [normal, polygonsRes] = await Promise.all([
-    getRoutes(body.mode, from, to),
-    db.rpc('hazard_avoid_polygons', {
-      p_origin_lng: from[0], p_origin_lat: from[1], p_dest_lng: to[0], p_dest_lat: to[1],
-      p_corridor_m: Math.min(Math.max(trip * 0.5, 400), 3000), p_radius_m: 60, p_max: 20,
-    }),
-  ]);
+  const score = async (r: ProviderRoute & { source: 'normal' | 'avoid' }): Promise<ScoredRoute> => {
+    const alerts = await alertsNear(r);
+    const { score: s, level } = scoreRoute(alerts, body.localHour);
+    return { source: r.source, coordinates: r.coordinates, distanceM: r.distanceM, durationS: r.durationS, riskScore: s, riskLevel: level, alerts };
+  };
+
+  // 1. Normal routes (fastest + alternatives), scored against live alerts (PostGIS finds them, TypeScript scores them).
+  const normal = await getRoutes(body.mode, from, to);
   if (!normal.length) throw new ApiError(404, 'NO_ROUTE', "We couldn't find a route between these places.");
+  const scored: ScoredRoute[] = await Promise.all(dedupe(normal.map((r) => ({ ...r, source: 'normal' as const }))).map(score));
 
-  // 2. One extra "avoid hazards" route, only if there is something to avoid. Failure never breaks planning.
-  const candidates: (ProviderRoute & { source: 'normal' | 'avoid' })[] = normal.map((r) => ({ ...r, source: 'normal' as const }));
-  if (polygonsRes.error) console.error('hazard_avoid_polygons failed:', polygonsRes.error.message);
-  const polygons = polygonsRes.error ? null : (polygonsRes.data as string | null);
-  if (polygons) {
-    const avoid = await getAvoidRoute(body.mode, from, to, polygons);
-    if (avoid) candidates.push({ ...avoid, source: 'avoid' });
-  }
-
-  // 3. Score every candidate against live alerts (PostGIS finds them, TypeScript scores them).
-  const scored: ScoredRoute[] = await Promise.all(
-    dedupe(candidates).map(async (r) => {
-      const alerts = await alertsNear(r);
-      const { score, level } = scoreRoute(alerts, body.localHour);
-      return { source: r.source, coordinates: r.coordinates, distanceM: r.distanceM, durationS: r.durationS, riskScore: score, riskLevel: level, alerts };
-    }),
+  // 2. One extra "avoid hazards" route around the dangerous alerts actually on the fastest route.
+  //    Circles reach the road (distance + 25 m), overlaps are merged, start/destination are never covered.
+  //    If no way round exists, the least dangerous circles are dropped and it retries (max 3 tries).
+  //    Failure never breaks planning.
+  const fastest = [...scored].sort((a, b) => a.durationS - b.durationS)[0]!;
+  let circles = hazardCircles(
+    fastest.alerts.map((a) => ({ ...a, points: alertPoints(a, body.localHour) })),
+    body.origin,
+    body.destination,
   );
+  for (let attempt = 0; attempt < AVOID_ATTEMPTS && circles.length; attempt++) {
+    const avoid = await getAvoidRoute(body.mode, from, to, circlesToGeoJson(mergeCircles(circles))!);
+    if (avoid) {
+      const isNew = !scored.some((s) => Math.abs(s.distanceM - avoid.distanceM) < 15 && Math.abs(s.durationS - avoid.durationS) < 15);
+      if (isNew) scored.push(await score({ ...avoid, source: 'avoid' }));
+      break;
+    }
+    circles = circles.slice(0, Math.max(0, circles.length - Math.max(1, Math.ceil(circles.length / 3))));
+  }
 
   const plan = pickRoutes(scored)!;
   const toJson = (r: ScoredRoute) => ({
