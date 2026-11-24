@@ -34,7 +34,13 @@
           "dark": { "backgroundColor": "#0A1514" }
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Civic Map uses your location to show alerts around you and to check you are near a problem when you report it."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

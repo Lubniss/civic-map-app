@@ -14,7 +14,8 @@
     "start": "node --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "smoke": "node --env-file=.env --env-file=../mobile/.env scripts/smoke.mjs"
+    "smoke": "node --env-file=.env --env-file=../mobile/.env scripts/smoke.mjs",
+    "demo": "node --env-file=.env scripts/demo-data.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",

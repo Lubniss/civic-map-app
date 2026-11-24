@@ -15,6 +15,7 @@ export interface Palette {
   onAccent: string;
   accentText: string;
   tabBar: string;
+  tabBorder: string;
   tabIcon: string;
   tabIconOff: string;
   sos: string;
@@ -38,9 +39,10 @@ export const palettes: Record<SchemeName, Palette> = {
     accent: '#15803D',
     onAccent: '#FFFFFF',
     accentText: '#15803D',
-    tabBar: '#0F3D3A',
-    tabIcon: '#FFFFFF',
-    tabIconOff: '#8FB8B2',
+    tabBar: '#FFFFFF',
+    tabBorder: '#E3E9E6',
+    tabIcon: '#15803D',
+    tabIconOff: '#5B6B65',
     sos: '#DC2626',
     onSos: '#FFFFFF',
     danger: '#B91C1C',
@@ -58,9 +60,10 @@ export const palettes: Record<SchemeName, Palette> = {
     accent: '#22C55E',
     onAccent: '#04210F',
     accentText: '#4ADE80',
-    tabBar: '#0F3D3A',
-    tabIcon: '#FFFFFF',
-    tabIconOff: '#8FB8B2',
+    tabBar: '#111D1C',
+    tabBorder: '#2A3C3A',
+    tabIcon: '#4ADE80',
+    tabIconOff: '#98ACA7',
     sos: '#DC2626',
     onSos: '#FFFFFF',
     danger: '#FCA5A5',
@@ -119,28 +122,76 @@ export const CATEGORY_KEYS = [
 ] as const;
 export type Category = (typeof CATEGORY_KEYS)[number];
 
+/**
+ * fill/icon  = solid map pin (only used on the map).
+ * tint/tintIcon = soft chip for lists and forms (tinted background, coloured icon).
+ */
+export interface CategoryColors {
+  fill: string;
+  icon: string;
+  tint: string;
+  tintIcon: string;
+}
+
 export interface CategoryStyle {
   label: string;
   emergency: boolean;
   /** Ionicons name (from @expo/vector-icons). */
   icon: string;
-  light: { fill: string; icon: string };
-  dark: { fill: string; icon: string };
+  light: CategoryColors;
+  dark: CategoryColors;
 }
 
 const W = '#FFFFFF';
 const DARK_ICON = '#1F2937';
 
+// Light tints = 12% of the fill on white; dark tints = 22% of the fill on the dark card. Icon on tint ≥ 3.5:1.
 export const categories: Record<Category, CategoryStyle> = {
-  unsafe: { label: 'Unsafe area', emergency: true, icon: 'warning', light: { fill: '#DC2626', icon: W }, dark: { fill: '#EF4444', icon: W } },
-  harassment: { label: 'Harassment', emergency: true, icon: 'hand-left', light: { fill: '#BE123C', icon: W }, dark: { fill: '#E11D48', icon: W } },
-  fire: { label: 'Fire', emergency: true, icon: 'flame', light: { fill: '#EA580C', icon: W }, dark: { fill: '#EA580C', icon: W } },
-  accident: { label: 'Accident', emergency: true, icon: 'car', light: { fill: '#7C3AED', icon: W }, dark: { fill: '#8B5CF6', icon: W } },
-  garbage: { label: 'Garbage / Waste', emergency: false, icon: 'trash', light: { fill: '#92400E', icon: W }, dark: { fill: '#B7791F', icon: W } },
-  road: { label: 'Pothole / Road', emergency: false, icon: 'construct', light: { fill: '#0F766E', icon: W }, dark: { fill: '#0D9488', icon: W } },
-  light: { label: 'Streetlight out', emergency: false, icon: 'bulb', light: { fill: '#EAB308', icon: DARK_ICON }, dark: { fill: '#FACC15', icon: DARK_ICON } },
-  water: { label: 'Water / Drainage', emergency: false, icon: 'water', light: { fill: '#0284C7', icon: W }, dark: { fill: '#0284C7', icon: W } },
-  other: { label: 'Other', emergency: false, icon: 'ellipsis-horizontal', light: { fill: '#475569', icon: W }, dark: { fill: '#64748B', icon: W } },
+  unsafe: {
+    label: 'Unsafe area', emergency: true, icon: 'warning',
+    light: { fill: '#DC2626', icon: W, tint: '#FBE5E5', tintIcon: '#DC2626' },
+    dark: { fill: '#EF4444', icon: W, tint: '#432928', tintIcon: '#FCA5A5' },
+  },
+  harassment: {
+    label: 'Harassment', emergency: true, icon: 'hand-left',
+    light: { fill: '#BE123C', icon: W, tint: '#F7E3E8', tintIcon: '#BE123C' },
+    dark: { fill: '#E11D48', icon: W, tint: '#402029', tintIcon: '#FDA4AF' },
+  },
+  fire: {
+    label: 'Fire', emergency: true, icon: 'flame',
+    light: { fill: '#C2522A', icon: W, tint: '#F8EAE5', tintIcon: '#C2522A' },
+    dark: { fill: '#D9673A', icon: W, tint: '#3F3026', tintIcon: '#F4A27E' },
+  },
+  accident: {
+    label: 'Accident', emergency: true, icon: 'car',
+    light: { fill: '#6B55C2', icon: W, tint: '#EDEBF8', tintIcon: '#6B55C2' },
+    dark: { fill: '#8676D6', icon: W, tint: '#2C3448', tintIcon: '#B9AEF0' },
+  },
+  garbage: {
+    label: 'Garbage / Waste', emergency: false, icon: 'trash',
+    light: { fill: '#92400E', icon: W, tint: '#F2E8E2', tintIcon: '#92400E' },
+    dark: { fill: '#B7791F', icon: W, tint: '#373420', tintIcon: '#E2B45A' },
+  },
+  road: {
+    label: 'Pothole / Road', emergency: false, icon: 'construct',
+    light: { fill: '#0F766E', icon: W, tint: '#E2EFEE', tintIcon: '#0F766E' },
+    dark: { fill: '#0D9488', icon: W, tint: '#123A37', tintIcon: '#5EEAD4' },
+  },
+  light: {
+    label: 'Streetlight out', emergency: false, icon: 'bulb',
+    light: { fill: '#EAB308', icon: DARK_ICON, tint: '#FCF6E1', tintIcon: '#854D0E' },
+    dark: { fill: '#FACC15', icon: DARK_ICON, tint: '#46471E', tintIcon: '#FDE68A' },
+  },
+  water: {
+    label: 'Water / Drainage', emergency: false, icon: 'water',
+    light: { fill: '#0284C7', icon: W, tint: '#E1F0F8', tintIcon: '#0284C7' },
+    dark: { fill: '#0284C7', icon: W, tint: '#0F3745', tintIcon: '#7DD3FC' },
+  },
+  other: {
+    label: 'Other', emergency: false, icon: 'ellipsis-horizontal',
+    light: { fill: '#475569', icon: W, tint: '#E9EBED', tintIcon: '#475569' },
+    dark: { fill: '#64748B', icon: W, tint: '#253338', tintIcon: '#CBD5E1' },
+  },
 };
 
 /** Font family names, registered with useFonts in the root layout. */
@@ -193,7 +244,7 @@ export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 }
 export const size = {
   touch: 44,
   mapButton: 48,
-  fab: 64,
-  fabLift: 16,
+  fab: 56,
+  fabLift: 14,
   tabBarHeight: 64,
 } as const;

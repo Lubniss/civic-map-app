@@ -24,21 +24,31 @@ export function TabBarVisibilityProvider({ children }: { children: ReactNode }) 
 /** Call setHidden(true) when a bottom sheet opens, false when it closes. */
 export const useTabBarVisibility = () => useContext(TabBarContext);
 
-/** Bottom padding a scrolling screen needs so its content isn't hidden behind the tab bar. */
-export function useTabBarSpace(): number {
+/** How far the bar's top edge sits above the bottom of the screen. */
+export function useTabBarTop(): number {
   const insets = useSafeAreaInsets();
-  return insets.bottom + space.md + size.tabBarHeight + space.lg;
+  return insets.bottom + space.md + size.tabBarHeight;
+}
+
+/** Bottom padding for scrolling screens: clears the bar and the raised "+" with room to spare. */
+export function useTabBarSpace(): number {
+  return useTabBarTop() + size.fabLift + space.xxxl;
 }
 
 // ---------- the bar ----------
-const ICONS: Record<string, { on: ComponentProps<typeof Ionicons>['name']; off: ComponentProps<typeof Ionicons>['name']; label: string }> = {
-  index: { on: 'map', off: 'map-outline', label: 'Map' },
-  reports: { on: 'document-text', off: 'document-text-outline', label: 'My Reports' },
-  profile: { on: 'person', off: 'person-outline', label: 'Profile' },
-};
+type IconName = ComponentProps<typeof Ionicons>['name'];
+const TABS: { name: string; on: IconName; off: IconName; label: string }[] = [
+  { name: 'index', on: 'map', off: 'map-outline', label: 'Map' },
+  { name: 'reports', on: 'document-text', off: 'document-text-outline', label: 'My Reports' },
+  { name: 'profile', on: 'person', off: 'person-outline', label: 'Profile' },
+];
 
+/**
+ * Sleek floating bar: white with a hairline border in light mode, dark slate in dark mode.
+ * Four evenly spaced slots: Map · My Reports · (+) · Profile.
+ */
 export function FloatingTabBar({ state, navigateToTab, onPressCreate }: TabBarProps & { onPressCreate: () => void }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { hidden } = useTabBarVisibility();
   const slide = useRef(new Animated.Value(0)).current;
@@ -48,28 +58,26 @@ export function FloatingTabBar({ state, navigateToTab, onPressCreate }: TabBarPr
   }, [hidden, slide]);
 
   const bottom = insets.bottom + space.md;
-  const translateY = slide.interpolate({ inputRange: [0, 1], outputRange: [0, size.tabBarHeight + bottom + size.fabLift + 8] });
+  const translateY = slide.interpolate({ inputRange: [0, 1], outputRange: [0, size.tabBarHeight + bottom + size.fabLift + 12] });
 
-  const renderTab = (routeName: string) => {
-    const index = state.routes.findIndex((r) => r.name === routeName);
+  const tab = (name: string) => {
+    const meta = TABS.find((t) => t.name === name)!;
+    const index = state.routes.findIndex((r) => r.name === name);
     const route = state.routes[index];
-    const meta = ICONS[routeName];
-    if (!route || !meta) return null;
+    if (!route) return <View key={name} style={styles.slot} />;
     const focused = state.index === index;
-    const onPress = () => {
-      if (!focused) navigateToTab(route.key);
-    };
+    const color = focused ? colors.tabIcon : colors.tabIconOff;
     return (
       <Pressable
         key={route.key}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
         accessibilityLabel={meta.label}
-        onPress={onPress}
-        style={styles.tab}
+        onPress={() => { if (!focused) navigateToTab(route.key); }}
+        style={styles.slot}
       >
-        <Ionicons name={focused ? meta.on : meta.off} size={22} color={focused ? colors.tabIcon : colors.tabIconOff} />
-        <AppText variant="tabLabel" color={focused ? colors.tabIcon : colors.tabIconOff} numberOfLines={1}>{meta.label}</AppText>
+        <Ionicons name={focused ? meta.on : meta.off} size={22} color={color} />
+        <AppText variant="tabLabel" color={color} numberOfLines={1}>{meta.label}</AppText>
       </Pressable>
     );
   };
@@ -79,54 +87,53 @@ export function FloatingTabBar({ state, navigateToTab, onPressCreate }: TabBarPr
       pointerEvents={hidden ? 'none' : 'box-none'}
       style={[styles.wrap, { bottom, transform: [{ translateY }] }]}
     >
-      <View style={[styles.bar, { backgroundColor: colors.tabBar, shadowColor: colors.shadow }]}>
-        <View style={styles.half}>{renderTab('index')}{renderTab('reports')}</View>
-        <View style={{ width: size.fab + space.lg }} />
-        <View style={styles.half}>{renderTab('profile')}</View>
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Report a problem"
-        onPress={onPressCreate}
-        style={({ pressed }) => [
-          styles.fab,
-          { backgroundColor: colors.accent, borderColor: colors.bg, opacity: pressed ? 0.9 : 1, shadowColor: colors.shadow },
+      <View
+        style={[
+          styles.bar,
+          { backgroundColor: colors.tabBar, borderColor: colors.tabBorder },
+          !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
         ]}
       >
-        <Ionicons name="add" size={32} color={colors.onAccent} />
-      </Pressable>
+        {tab('index')}
+        {tab('reports')}
+        <View style={styles.slot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Report a problem"
+            onPress={onPressCreate}
+            style={({ pressed }) => [
+              styles.fab,
+              { backgroundColor: colors.accent, borderColor: colors.tabBar, opacity: pressed ? 0.9 : 1 },
+              !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+            ]}
+          >
+            <Ionicons name="add" size={28} color={colors.onAccent} />
+          </Pressable>
+        </View>
+        {tab('profile')}
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: space.lg, right: space.lg, alignItems: 'center' },
+  wrap: { position: 'absolute', left: space.lg, right: space.lg },
   bar: {
-    alignSelf: 'stretch',
     height: size.tabBarHeight,
     borderRadius: radius.tabBar,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: space.sm,
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    paddingHorizontal: space.xs,
   },
-  half: { flex: 1, flexDirection: 'row', justifyContent: 'space-around' },
-  tab: { minWidth: 64, minHeight: size.touch, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  slot: { flex: 1, minHeight: size.touch, alignItems: 'center', justifyContent: 'center', gap: 2 },
   fab: {
-    position: 'absolute',
-    top: -size.fabLift - 4,
+    marginTop: -size.fabLift * 2,
     width: size.fab,
     height: size.fab,
     borderRadius: size.fab / 2,
-    borderWidth: 4,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
   },
 });

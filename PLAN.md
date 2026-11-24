@@ -7,7 +7,7 @@
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
-| 4. Mobile core app | In progress. Step 1 done (Expo SDK 58 app, theme, fonts, appearance setting, email-code sign-in, floating tab bar, server check). Next: step 2, the map |
+| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Next: step 3, the report flow |
 | 5. Phone SMS check | Not started |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
@@ -185,6 +185,12 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - streetlight `#EAB308`/`#FACC15` with a **dark icon** `#1F2937`
 - water `#0284C7`
 - other `#475569`/`#64748B`
+
+*Polish (after step 1):*
+- **Lists and forms** use soft tinted category chips (a tinted background and a coloured icon). Solid circles are only for map pins.
+- **Calmer Fire and Accident:** fire `#C2522A`/`#D9673A`, accident `#6B55C2`/`#8676D6`.
+- **Tab bar:** white with a hairline border in light mode (active icon `#15803D`, inactive `#5B6B65`), dark slate `#111D1C` in dark mode. The raised "+" is 56 px, there are 4 evenly spaced slots, and screens get extra bottom padding.
+- **Cards:** a 1 px border in both modes, and Android elevation 1 only.
 
 *Pin rings:* a 2 px ring on every pin, **white in light mode and `#E8F0ED` in dark mode** (less glare at night), plus a soft shadow in light mode.
 

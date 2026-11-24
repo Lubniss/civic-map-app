@@ -60,8 +60,8 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + space.xxxl, paddingBottom: insets.bottom + space.xxl }]}
       >
-        <View style={[styles.logo, { backgroundColor: colors.tabBar }]}>
-          <AppText variant="display" color={colors.tabIcon}>C</AppText>
+        <View style={[styles.logo, { backgroundColor: colors.accent }]}>
+          <AppText variant="display" color={colors.onAccent}>C</AppText>
         </View>
         <AppText variant="display" accessibilityRole="header">Civic Map</AppText>
         <AppText variant="body" color="muted" style={{ marginBottom: space.xxl }}>

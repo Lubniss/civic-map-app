@@ -4,7 +4,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { radius, size, space, type as typeScale, type BadgeName } from '@/theme/tokens';
 import { AppText } from './AppText';
 
-/** White rounded card (image 2 style): soft shadow in light mode, 1 px border in dark mode. */
+/** Rounded card: crisp 1 px border in both modes, and only a very faint shadow in light mode. */
 export function Card({ style, ...rest }: ViewProps) {
   const { colors, isDark } = useTheme();
   return (
@@ -14,15 +14,15 @@ export function Card({ style, ...rest }: ViewProps) {
           backgroundColor: colors.card,
           borderRadius: radius.card,
           padding: space.lg,
-          borderWidth: isDark ? 1 : 0,
+          borderWidth: 1,
           borderColor: colors.border,
         },
         !isDark && {
           shadowColor: colors.shadow,
-          shadowOpacity: 0.08,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 3,
+          shadowOpacity: 0.04,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 1 },
+          elevation: 1,
         },
         style,
       ]}
