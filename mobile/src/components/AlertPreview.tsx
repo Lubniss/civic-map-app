@@ -27,18 +27,24 @@ export function alertInfoLine(a: MapAlert): string {
   return people;
 }
 
-/** Short preview shown when a pin is tapped. Full detail (photos, Confirm it's fixed) comes in step 4. */
-export function AlertPreview({ alert }: { alert: MapAlert }) {
+/** Pinned title bar for the alert sheet. */
+export function AlertPreviewHeader({ alert }: { alert: MapAlert }) {
   const badge = alertBadge(alert);
   return (
-    <>
-      <View style={{ flexDirection: 'row', gap: space.md, alignItems: 'center' }}>
-        <CategoryIcon category={alert.category} size={44} />
-        <View style={{ flex: 1, gap: space.xs }}>
-          <AppText variant="h2">{categories[alert.category].label}</AppText>
-          <Badge kind={badge.kind} label={badge.label} />
-        </View>
+    <View style={{ flexDirection: 'row', gap: space.md, alignItems: 'center' }}>
+      <CategoryIcon category={alert.category} size={44} />
+      <View style={{ flex: 1, gap: space.xs }}>
+        <AppText variant="h2" accessibilityRole="header">{categories[alert.category].label}</AppText>
+        <Badge kind={badge.kind} label={badge.label} />
       </View>
+    </View>
+  );
+}
+
+/** Short preview shown when a pin is tapped. Full detail (photos, Confirm it's fixed) comes in step 4. */
+export function AlertPreview({ alert }: { alert: MapAlert }) {
+  return (
+    <>
       <AppText variant="body">{alertInfoLine(alert)}</AppText>
       <AppText variant="caption" color="muted">
         First reported {timeAgo(alert.createdAt)} · last update {timeAgo(alert.updatedAt)}

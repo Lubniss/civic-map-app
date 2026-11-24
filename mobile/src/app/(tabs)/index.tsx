@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AlertPreview } from '@/components/AlertPreview';
-import { SummaryDetails, SummaryPill, type PillState } from '@/components/AreaSummary';
+import { AlertPreview, AlertPreviewHeader } from '@/components/AlertPreview';
+import { SummaryDetails, SummaryHeader, SummaryPill, type PillState } from '@/components/AreaSummary';
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTabBarTop } from '@/components/FloatingTabBar';
@@ -121,13 +121,9 @@ export default function MapScreen() {
         <SosButton onHint={showHint} />
       </View>
 
-      {/* Right column: Alerts / Heatmap toggle, my location */}
+      {/* Right column: Alerts / Heat mode switch (active one filled + labelled), my location */}
       <View style={[styles.right, { top: controlsTop }]} pointerEvents="box-none">
-        <RoundButton
-          icon={mode === 'alerts' ? 'flame-outline' : 'location-outline'}
-          label={mode === 'alerts' ? 'Show heatmap' : 'Show alerts'}
-          onPress={() => setMode((m) => (m === 'alerts' ? 'heat' : 'alerts'))}
-        />
+        <ModeSwitch mode={mode} onChange={setMode} />
         <RoundButton icon="navigate" label="Go to my location" onPress={goToMe} />
       </View>
 
@@ -159,13 +155,60 @@ export default function MapScreen() {
         </Animated.View>
       ) : null}
 
-      <BottomSheet visible={summaryOpen} onClose={() => setSummaryOpen(false)} accessibilityLabel="Area summary">
+      <BottomSheet
+        visible={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        accessibilityLabel="Area summary"
+        header={pillState.kind === 'ready' ? <SummaryHeader summary={pillState.summary} /> : null}
+      >
         {pillState.kind === 'ready' ? <SummaryDetails summary={pillState.summary} /> : null}
       </BottomSheet>
 
-      <BottomSheet visible={selected !== null} onClose={() => setSelected(null)} accessibilityLabel="Alert details">
+      <BottomSheet
+        visible={selected !== null}
+        onClose={() => setSelected(null)}
+        accessibilityLabel="Alert details"
+        header={selected ? <AlertPreviewHeader alert={selected} /> : null}
+      >
         {selected ? <AlertPreview alert={selected} /> : null}
       </BottomSheet>
+    </View>
+  );
+}
+
+/** Vertical two-option switch: the active mode is filled green and both options are labelled. */
+function ModeSwitch({ mode, onChange }: { mode: 'alerts' | 'heat'; onChange: (m: 'alerts' | 'heat') => void }) {
+  const { colors, isDark } = useTheme();
+  const options: { value: 'alerts' | 'heat'; icon: React.ComponentProps<typeof Ionicons>['name']; label: string; a11y: string }[] = [
+    { value: 'alerts', icon: 'location', label: 'Alerts', a11y: 'Show alert pins and zones' },
+    { value: 'heat', icon: 'flame', label: 'Heat', a11y: 'Show heatmap' },
+  ];
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel="Map mode"
+      style={[
+        styles.switch,
+        { backgroundColor: colors.card, borderColor: colors.border },
+        !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+      ]}
+    >
+      {options.map((o) => {
+        const on = mode === o.value;
+        return (
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={o.a11y}
+            style={[styles.switchOption, on && { backgroundColor: colors.accent }]}
+          >
+            <Ionicons name={on ? o.icon : (`${o.icon}-outline` as typeof o.icon)} size={18} color={on ? colors.onAccent : colors.textMuted} />
+            <AppText variant="tabLabel" color={on ? colors.onAccent : colors.textMuted} style={{ fontSize: 10, lineHeight: 12 }}>{o.label}</AppText>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -193,6 +236,20 @@ const styles = StyleSheet.create({
   pillWrap: { position: 'absolute', left: space.lg, right: space.lg },
   left: { position: 'absolute', left: space.lg },
   right: { position: 'absolute', right: space.lg, gap: space.md },
+  switch: {
+    width: size.mapButton + 4,
+    borderRadius: (size.mapButton + 4) / 2,
+    borderWidth: 1,
+    padding: 3,
+    gap: 3,
+  },
+  switchOption: {
+    height: 50,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
   round: {
     width: size.mapButton,
     height: size.mapButton,

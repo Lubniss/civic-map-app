@@ -57,10 +57,24 @@ export function SummaryPill({ state, onPress }: { state: PillState; onPress: () 
         !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
       ]}
     >
-      {state.kind === 'loading' ? <ActivityIndicator size="small" color={colors.textMuted} /> : badge ? <Badge kind={badge.kind} label={badge.label} /> : null}
+      {state.kind === 'loading' ? (
+        <ActivityIndicator size="small" color={colors.textMuted} />
+      ) : badge ? (
+        <Badge kind={badge.kind} label={badge.label} style={{ alignSelf: 'center' }} />
+      ) : null}
       <AppText variant="pillTitle" numberOfLines={1} style={{ flex: 1 }}>{text}</AppText>
       {tappable ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
     </Pressable>
+  );
+}
+
+/** Pinned title bar for the Area Summary sheet (stays put while the content scrolls). */
+export function SummaryHeader({ summary }: { summary: AreaSummary }) {
+  return (
+    <View style={{ gap: space.xs }}>
+      <AppText variant="h2" accessibilityRole="header">Area Summary</AppText>
+      <AppText variant="caption" color="muted">{summary.scope}</AppText>
+    </View>
   );
 }
 
@@ -71,10 +85,6 @@ export function SummaryDetails({ summary }: { summary: AreaSummary }) {
 
   return (
     <>
-      <View style={{ gap: space.xs }}>
-        <AppText variant="h2" accessibilityRole="header">Area Summary</AppText>
-        <AppText variant="caption" color="muted">{summary.scope}</AppText>
-      </View>
       <AppText variant="h1">{summary.total ? summary.headline : 'No active alerts in this area.'}</AppText>
 
       <View style={styles.chips}>

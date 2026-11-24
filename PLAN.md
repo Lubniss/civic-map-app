@@ -7,7 +7,7 @@
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
-| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Next: step 3, the report flow |
+| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Next: step 4, alert detail, My Reports and Profile |
 | 5. Phone SMS check | Not started |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
@@ -224,7 +224,7 @@ Done before the phone app, so the app is built on the final rules and no data ne
   - While the app is open, it watches the user's location. When they walk into a red zone, grey zone, unhealthy area or (at night) a poorly lit street, a banner slides in under the summary pill, for example "Heads up: Harassment reported here 2 h ago".
   - At most once per zone every 6 hours. It's remembered on the phone only.
 
-**Report flow** (started with the centre "+" button):
+**Report flow** (started with the centre "+" button). *As built in step 3, the category comes first, then the pin*, so "Happening now" emergencies reach the Call 112 step immediately, and "recent" reports can use the 1-hour location history when placing the pin. The planned order was:
 1. **Place the pin with a fixed centre crosshair.** The pin stays in the middle of the screen and the user drags the map under it.
    - The map starts at the user's location and shows a faint 300 m circle. The "Use this spot" button is disabled outside it ("Move closer: you must be within 300 m").
    - The spot's **street or area name** shows under the pin, via `Location.reverseGeocodeAsync`. It's debounced and cached, and falls back to "Near <area>" if the lookup fails.

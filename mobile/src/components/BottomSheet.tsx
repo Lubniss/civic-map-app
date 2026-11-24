@@ -7,11 +7,13 @@ import { useTabBarVisibility } from './FloatingTabBar';
 
 /**
  * Simple bottom sheet (image 1 style): white surface, drag handle, scrim.
+ * `header` stays pinned under the handle while `children` scroll beneath it.
  * Hides the floating tab bar while open so it never covers sheet content.
  */
-export function BottomSheet({ visible, onClose, children, accessibilityLabel }: {
+export function BottomSheet({ visible, onClose, header, children, accessibilityLabel }: {
   visible: boolean;
   onClose: () => void;
+  header?: ReactNode;
   children: ReactNode;
   accessibilityLabel?: string;
 }) {
@@ -19,12 +21,14 @@ export function BottomSheet({ visible, onClose, children, accessibilityLabel }: 
   const insets = useSafeAreaInsets();
   const { setHidden } = useTabBarVisibility();
   const [mounted, setMounted] = useState(visible);
+  const [scrolled, setScrolled] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
   const height = Dimensions.get('window').height;
 
   useEffect(() => {
     if (visible) {
       setMounted(true);
+      setScrolled(false);
       setHidden(true);
       Animated.timing(progress, { toValue: 1, duration: 240, useNativeDriver: true }).start();
     } else if (mounted) {
@@ -58,10 +62,18 @@ export function BottomSheet({ visible, onClose, children, accessibilityLabel }: 
           },
         ]}
       >
-        <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" style={styles.handleArea}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
-        </Pressable>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={[styles.top, { borderBottomColor: scrolled ? colors.border : 'transparent' }]}>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" style={styles.handleArea}>
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          </Pressable>
+          {header ? <View style={styles.header}>{header}</View> : null}
+        </View>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingTop: header ? space.md : 0 }]}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={32}
+          onScroll={(e) => setScrolled(e.nativeEvent.contentOffset.y > 2)}
+        >
           {children}
         </ScrollView>
       </Animated.View>
@@ -79,8 +91,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.sheet,
     borderWidth: 1,
     borderBottomWidth: 0,
+    overflow: 'hidden',
   },
+  top: { borderBottomWidth: 1 },
   handleArea: { alignItems: 'center', paddingTop: space.md, paddingBottom: space.sm },
   handle: { width: 40, height: 5, borderRadius: 3 },
+  header: { paddingHorizontal: space.xl, paddingBottom: space.md },
   content: { paddingHorizontal: space.xl, paddingBottom: space.lg, gap: space.lg },
 });

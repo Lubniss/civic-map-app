@@ -9,6 +9,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { LocationHistoryProvider } from '@/lib/locationHistory';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 import { fonts } from '@/theme/tokens';
 
@@ -58,17 +59,23 @@ function RootNavigator() {
 
   if (loading) return null;
 
+  const stack = (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+      <Stack.Protected guard={!!session}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="report" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!session}>
+        <Stack.Screen name="sign-in" />
+      </Stack.Protected>
+    </Stack>
+  );
+
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-        <Stack.Protected guard={!!session}>
-          <Stack.Screen name="(tabs)" />
-        </Stack.Protected>
-        <Stack.Protected guard={!session}>
-          <Stack.Screen name="sign-in" />
-        </Stack.Protected>
-      </Stack>
+      {/* The 1-hour location history (on the phone only) records only while signed in. */}
+      {session ? <LocationHistoryProvider>{stack}</LocationHistoryProvider> : stack}
     </>
   );
 }

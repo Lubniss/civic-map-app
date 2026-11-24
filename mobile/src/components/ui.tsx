@@ -116,12 +116,12 @@ export function Segmented<T extends string>({
 }
 
 /** Status / risk badge using the approved badge colour pairs. */
-export function Badge({ kind, label }: { kind: BadgeName; label: string }) {
+export function Badge({ kind, label, style }: { kind: BadgeName; label: string; style?: ViewProps['style'] }) {
   const { badges } = useTheme();
   const c = badges[kind];
   return (
-    <View style={[styles.badge, { backgroundColor: c.bg }]}>
-      <AppText variant="pillBadge" color={c.fg}>{label}</AppText>
+    <View style={[styles.badge, { backgroundColor: c.bg }, style]}>
+      <AppText variant="pillBadge" color={c.fg} style={{ includeFontPadding: false, textAlignVertical: 'center' }}>{label}</AppText>
     </View>
   );
 }
@@ -155,6 +155,8 @@ const styles = StyleSheet.create({
   },
   badge: {
     alignSelf: 'flex-start',
+    minHeight: 24,
+    justifyContent: 'center',
     borderRadius: radius.pill,
     paddingHorizontal: space.md,
     paddingVertical: space.xs,
