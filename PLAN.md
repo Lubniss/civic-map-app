@@ -8,7 +8,7 @@
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
 | 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
-| 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. Waiting for the user to set up Twilio Verify in Supabase, test it, then turn the switch on |
+| 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. **Real SMS deferred by the user**: the switch stays off (anyone signed in can report). To finish later: set up Twilio Verify (steps below), test, then set `REQUIRE_PHONE_VERIFICATION=true` |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
 | 8. Notifications (push + zone-entry alerts) | Not started |
