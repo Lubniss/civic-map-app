@@ -39,13 +39,15 @@ export function useTabBarSpace(): number {
 type IconName = ComponentProps<typeof Ionicons>['name'];
 const TABS: { name: string; on: IconName; off: IconName; label: string }[] = [
   { name: 'index', on: 'map', off: 'map-outline', label: 'Map' },
+  { name: 'routes', on: 'git-branch', off: 'git-branch-outline', label: 'Routes' },
   { name: 'reports', on: 'document-text', off: 'document-text-outline', label: 'My Reports' },
   { name: 'profile', on: 'person', off: 'person-outline', label: 'Profile' },
 ];
 
 /**
  * Sleek floating bar: white with a hairline border in light mode, dark slate in dark mode.
- * Four evenly spaced slots: Map · My Reports · (+) · Profile.
+ * Symmetric 2–1–2 layout so the raised "+" sits exactly in the centre:
+ * Map · Routes · (+) · My Reports · Profile.
  */
 export function FloatingTabBar({ state, navigateToTab, onPressCreate }: TabBarProps & { onPressCreate: () => void }) {
   const { colors, isDark } = useTheme();
@@ -95,7 +97,7 @@ export function FloatingTabBar({ state, navigateToTab, onPressCreate }: TabBarPr
         ]}
       >
         {tab('index')}
-        {tab('reports')}
+        {tab('routes')}
         <View style={styles.slot}>
           <Pressable
             accessibilityRole="button"
@@ -110,6 +112,7 @@ export function FloatingTabBar({ state, navigateToTab, onPressCreate }: TabBarPr
             <Ionicons name="add" size={28} color={colors.onAccent} />
           </Pressable>
         </View>
+        {tab('reports')}
         {tab('profile')}
       </View>
     </Animated.View>

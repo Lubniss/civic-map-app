@@ -11,6 +11,7 @@ export default function TabsLayout() {
         tabBar={(props) => <FloatingTabBar {...props} onPressCreate={() => router.push('/report')} />}
       >
         <Tabs.Screen name="index" options={{ title: 'Map' }} />
+        <Tabs.Screen name="routes" options={{ title: 'Routes' }} />
         <Tabs.Screen name="reports" options={{ title: 'My Reports' }} />
         <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       </Tabs>

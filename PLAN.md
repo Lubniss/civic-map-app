@@ -192,6 +192,27 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - **Tab bar:** white with a hairline border in light mode (active icon `#15803D`, inactive `#5B6B65`), dark slate `#111D1C` in dark mode. The raised "+" is 56 px, there are 4 evenly spaced slots, and screens get extra bottom padding.
 - **Cards:** a 1 px border in both modes, and Android elevation 1 only.
 
+*Visual upgrade (after step 3):*
+- **Livelier map base (Android, Google Maps):**
+  - soft green parks, blue water, warm muted highways
+  - visible street, neighbourhood and place names
+  - about 15–20% less saturated than Google's defaults, so pins and red zones stand out
+  - Google's own place icons hidden
+- **Tab bar:** a symmetric 2–1–2 layout with the **+** exactly centred: **Map · Routes · (+) · My Reports · Profile**. "Routes" is a placeholder until phase 6.
+
+*Proposed, waiting for the user's OK: zoomed-in place icons*
+- **Data:** OpenStreetMap through our server. A new `GET /places?bbox=` route fetches ~1 km tiles from the free Overpass service, at most 1 request a second.
+- **Cache:** a new `places_cache` table (migration `003_places_cache.sql`; Safe Route's SQL moves to `004`), kept 7 days.
+- **Place types:** bus/train stops, cafés/restaurants, colleges/schools, parks, hospitals/clinics, police and fire stations.
+- **In the app:**
+  - only when zoomed in closer than street level (map width under ~1.2 km)
+  - at most 30 icons, nearest first, with `tracksViewChanges={false}`
+  - 24 px two-tone rounded-square icons drawn under the alert pins
+  - names only at the closest zoom
+  - Apple's built-in place icons hidden on iPhone (`showsPointsOfInterests={false}`)
+  - a "© OpenStreetMap contributors" note while place icons are shown
+- **Artwork:** icons in the reference's style, drawn with our MIT-licensed icon set (Streamline's icons are paid, so they aren't copied).
+
 *Pin rings:* a 2 px ring on every pin, **white in light mode and `#E8F0ED` in dark mode** (less glare at night), plus a soft shadow in light mode.
 
 **Typography and layout:**
