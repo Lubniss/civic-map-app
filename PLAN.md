@@ -7,7 +7,7 @@
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
-| 4. Mobile core app | Not started (design agreed: see "Look & design" and the Phase 4 checklist) |
+| 4. Mobile core app | In progress. Step 1 done (Expo SDK 58 app, theme, fonts, appearance setting, email-code sign-in, floating tab bar, server check). Next: step 2, the map |
 | 5. Phone SMS check | Not started |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
@@ -145,6 +145,49 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - **Profile → Appearance:** System (default), Light or Dark, saved on the phone.
 - **Map styles:** matching light and dark map styles (`customMapStyle`) on Android with Google Maps. On iPhone in Expo Go, Apple Maps follows the light or dark choice through `userInterfaceStyle`.
 
+**Approved theme tokens** (contrast measured with WCAG formulas; all text ≥ 4.5:1, icons and shapes ≥ 3:1):
+
+*Base palette (light / dark):*
+- bg `#F6F8F7` / `#0A1514`
+- card `#FFFFFF` / `#132120`
+- cardAlt `#EEF3F1` / `#1B2B29`
+- border `#E3E9E6` / `#2A3C3A`
+- text `#0F1F1A` / `#E6EFEC`
+- textMuted `#5B6B65` / `#98ACA7`
+- accent button `#15803D` with white text / `#22C55E` with `#04210F` text
+- accentText `#15803D` / `#4ADE80`
+- tab bar `#0F3D3A` (icons `#FFFFFF`, inactive `#8FB8B2`)
+
+*Dark-mode tint:* dark cards, sheets and the dark map share one teal-slate tint (map land `#1A2725`, roads `#283735`, labels `#8FA5A0`). Sheets over the map stand apart by their 1 px border and drag handle, not a colour clash.
+
+*Badges* (text / background, light → dark):
+- Red zone: white on `#DC2626` (both)
+- Grey zone: `#374151`/`#E5E7EB` → `#D1D5DB`/`#262B33`
+- **Verified: slate-blue** `#2B4A6B`/`#E3EBF4` → `#A9C3DE`/`#182633` (never green on danger alerts)
+- Pending: stone `#57534E`/`#EEECE8` → `#D6D3D1`/`#26302E`
+- **Fixed: green** `#166534`/`#DCFCE7` → `#4ADE80`/`#0F2A1C`
+- Risk Low (Safe): green, same as Fixed
+- Risk Moderate: `#92400E`/`#FEF3C7` → `#FBBF24`/`#33270A`
+- Risk High: `#991B1B`/`#FEE2E2` → `#FCA5A5`/`#3B1414`
+- Green is used only for Safe, Fixed and primary actions.
+
+*Zone circles:*
+- Red zone / hot grey zone: stroke `#DC2626` and 18% fill (light), `#F87171` and 22% fill (dark).
+- Cooled grey zone: `#6B7280` (light), `#9CA3AF` (dark).
+
+*Category pins* (fill light / dark, white icon unless noted):
+- unsafe `#DC2626`/`#EF4444`
+- **harassment `#BE123C`/`#E11D48`** (rose-red, matching the red zones)
+- fire `#EA580C`
+- accident `#7C3AED`/`#8B5CF6`
+- garbage `#92400E`/`#B7791F`
+- road `#0F766E`/`#0D9488` (teal)
+- streetlight `#EAB308`/`#FACC15` with a **dark icon** `#1F2937`
+- water `#0284C7`
+- other `#475569`/`#64748B`
+
+*Pin rings:* a 2 px ring on every pin, **white in light mode and `#E8F0ED` in dark mode** (less glare at night), plus a soft shadow in light mode.
+
 **Typography and layout:**
 - One locked font pairing loaded with `expo-font`: **Poppins** for headings and numbers (as in image 2), **Inter** for body text. Text never falls back to random system fonts.
 - Text respects the phone's accessibility size up to a cap (`maxFontSizeMultiplier` ~1.3), so large system font settings can't push buttons off screen.
@@ -159,10 +202,13 @@ Done before the phone app, so the app is built on the final rules and no data ne
 
 **Map (home):**
 - **Top, always visible:** a floating **Area Summary pill** showing the risk badge (Low / Moderate / High) and the one-line headline, for example "A dirty area with safety concerns". It updates as the map moves. Tapping it opens the full Area Summary bottom sheet.
-- **Right side (reserved column, top to bottom):**
-  - red **SOS / 112** button
-  - Alerts / Heatmap toggle
-  - "my location" button
+- **Right side (reserved column):** Alerts / Heatmap toggle and the "my location" button.
+- **SOS / 112 button, kept apart from the map controls:**
+  - It sits **on the left, under the summary pill**, away from the controls people tap often.
+  - It needs a **press-and-hold of 1.5 seconds**, with a red ring filling up as feedback.
+  - A single tap only shows "Hold to call 112". Releasing early cancels.
+  - After the hold, the dialer opens with 112 ready.
+- **Tab bar and sheets:** the floating tab bar slides away when any bottom sheet opens (Area Summary, alert detail, report form) and comes back when the sheet closes, so it never covers sheet content or buttons.
 - **Bottom-left: reserved empty slot for the phase 6 "Safe Route" button**, so nothing has to move later.
 - **What's drawn on the map:**
   - Pins only for verified alerts, as category-coloured pins in the image 1 style.
