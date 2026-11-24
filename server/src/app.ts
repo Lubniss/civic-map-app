@@ -6,6 +6,7 @@ import { requireAuth } from './auth.js';
 import { ApiError } from './errors.js';
 import { alertsRouter } from './routes/alerts.js';
 import { mapRouter } from './routes/map.js';
+import { meRouter } from './routes/me.js';
 import { reportsRouter } from './routes/reports.js';
 
 export function createApp() {
@@ -26,6 +27,7 @@ export function createApp() {
   app.use(requireAuth);
   app.use('/alerts', alertsRouter);
   app.use('/reports', reportsRouter);
+  app.use('/me', meRouter);
   app.use('/', mapRouter);
 
   app.use((_req, _res, next) => next(new ApiError(404, 'NOT_FOUND', 'No such endpoint.')));

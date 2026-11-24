@@ -135,7 +135,15 @@ async function run() {
   const heat = await api(`/heatmap?bbox=${BBOX}`, users.B.token);
   check('GET /heatmap includes the pending report', heat.ok && heat.data.points.length >= 1, short(heat));
   const hidden = await api(`/alerts/${id}`, users.B.token);
-  check('GET /alerts/:id is 404 while pending', hidden.status === 404, short(hidden));
+  check('GET /alerts/:id is 404 while pending (for others)', hidden.status === 404, short(hidden));
+  const mine = await api(`/alerts/${id}`, users.A.token);
+  check('...but the reporter can open it, seeing only their own report', mine.ok && mine.data.onlyMine === true
+    && mine.data.reports.length === 1 && mine.data.reports[0].isMine, short(mine));
+  const myList = await api('/me/reports', users.A.token);
+  check('GET /me/reports lists my report with a plain-words status', myList.ok && myList.data.reports.length === 1
+    && myList.data.reports[0].status.label === 'Waiting for 2 more reports' && myList.data.nextPage === null, short(myList));
+  const otherList = await api('/me/reports', users.D.token);
+  check("GET /me/reports never shows other people's reports", otherList.ok && otherList.data.reports.length === 0, short(otherList));
 
   const noPhoto = await api('/reports', users.B.token, {
     method: 'POST', body: { ...P, category: 'garbage', severity: 2, photo_path: `${users.B.id}/never-uploaded.jpg`, ...here(P) },

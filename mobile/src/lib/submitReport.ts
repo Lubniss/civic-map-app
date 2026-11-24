@@ -55,6 +55,30 @@ export async function uploadPhoto(uri: string): Promise<string> {
   return path;
 }
 
+export interface ConfirmFixResult {
+  status: string;
+  fixCount: number;
+  needed: number;
+  resolved: boolean;
+  message: string;
+}
+
+/** Uploads the proof photo, then POST /alerts/:id/confirm-fix. */
+export async function confirmFix(alertId: string, photoUri: string, note: string, reporter: ReporterLocation): Promise<ConfirmFixResult> {
+  const photo_path = await uploadPhoto(photoUri);
+  return api<ConfirmFixResult>(`/alerts/${alertId}/confirm-fix`, {
+    method: 'POST',
+    body: {
+      photo_path,
+      note: note.trim() || null,
+      reporter_lat: reporter.lat,
+      reporter_lng: reporter.lng,
+      gps_accuracy_m: reporter.accuracy,
+      location_at: new Date(reporter.t).toISOString(),
+    },
+  });
+}
+
 export async function submitReport(input: ReportInput): Promise<ReportResult> {
   const photo_path = input.photoUri ? await uploadPhoto(input.photoUri) : null;
   return api<ReportResult>('/reports', {

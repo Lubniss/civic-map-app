@@ -7,7 +7,7 @@
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
-| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Next: step 4, alert detail, My Reports and Profile |
+| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Next: check the whole Phase 4 checklist on both phones, then phase 5 |
 | 5. Phone SMS check | Not started |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
@@ -203,7 +203,13 @@ Done before the phone app, so the app is built on the final rules and no data ne
   - The earlier muted style (−15–20%) was dropped because roads blended into the land.
 - **Tab bar:** a symmetric 2–1–2 layout with the **+** exactly centred: **Map · Routes · (+) · My Reports · Profile**. "Routes" is a placeholder until phase 6.
 
-*Proposed, waiting for the user's OK: zoomed-in place icons*
+- **Place ground tints:** each place's ground matches its icon colour, using `geometry.fill` only, with icons and labels untouched. Pastel in light mode, deep and subtle in dark mode:
+  - schools indigo, medical blush, business peach
+  - parks and sports green, transit sky blue
+  - worship lavender, attractions teal
+  - building outlines on `landscape.man_made`
+
+*Dropped by the user: zoomed-in OpenStreetMap place icons. Google's native coloured icons are enough. The proposal is kept below for reference.*
 - **Data:** OpenStreetMap through our server. A new `GET /places?bbox=` route fetches ~1 km tiles from the free Overpass service, at most 1 request a second.
 - **Cache:** a new `places_cache` table (migration `003_places_cache.sql`; Safe Route's SQL moves to `004`), kept 7 days.
 - **Place types:** bus/train stops, cafés/restaurants, colleges/schools, parks, hospitals/clinics, police and fire stations.

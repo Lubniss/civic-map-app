@@ -73,14 +73,28 @@ alertsRouter.get('/:id', async (req, res) => {
     .eq('id', id)
     .maybeSingle();
   if (error) throw fromDbError(error);
-  // Pending alerts and expired red zones are hidden from everyone.
-  if (!alert || (alert.status !== 'resolved' && !isVisible(alert.status, alert.expires_at))) {
-    throw new ApiError(404, 'ALERT_NOT_FOUND', 'This alert does not exist or is no longer shown.');
+  if (!alert) throw new ApiError(404, 'ALERT_NOT_FOUND', 'This alert does not exist or is no longer shown.');
+
+  // Pending alerts and expired red zones are hidden from everyone, except that people who
+  // reported them can still open them (from My Reports) and see only their own report.
+  let onlyMine = false;
+  if (alert.status !== 'resolved' && !isVisible(alert.status, alert.expires_at)) {
+    const { count, error: mineErr } = await db
+      .from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('alert_id', id)
+      .eq('user_id', user.id);
+    if (mineErr) throw fromDbError(mineErr);
+    if (!count) throw new ApiError(404, 'ALERT_NOT_FOUND', 'This alert does not exist or is no longer shown.');
+    onlyMine = true;
   }
 
+  let reportsQuery = db.from('reports').select('id, user_id, category, severity, note, photo_path, timing, created_at')
+    .eq('alert_id', id).order('created_at', { ascending: false }).limit(50);
+  if (onlyMine) reportsQuery = reportsQuery.eq('user_id', user.id);
+
   const [reportsRes, fixesRes] = await Promise.all([
-    db.from('reports').select('id, user_id, category, severity, note, photo_path, timing, created_at')
-      .eq('alert_id', id).order('created_at', { ascending: false }).limit(50),
+    reportsQuery,
     db.from('fix_confirmations').select('user_id, photo_path, note, created_at')
       .eq('alert_id', id).order('created_at', { ascending: false }),
   ]);
@@ -98,6 +112,8 @@ alertsRouter.get('/:id', async (req, res) => {
       verifiedAt: alert.verified_at,
       resolvedAt: alert.resolved_at,
     },
+    /** True when the alert isn't on the map (pending / expired) and only your own report is shown. */
+    onlyMine,
     reports: reports.map((r) => ({
       id: r.id,
       category: r.category,

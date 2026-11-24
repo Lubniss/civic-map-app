@@ -2,7 +2,7 @@
 // as the single "I was here" point attached to a "Happened recently" emergency report).
 // Recorded only while the app is open (foreground location).
 import * as Location from 'expo-location';
-import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { distanceM } from './distance';
 import { readSetting, writeSetting } from './storage';
 
@@ -33,17 +33,21 @@ interface Ctx {
   points: () => TrackPoint[];
   /** Record a reading taken elsewhere (e.g. the report screen's fresh GPS fix). */
   add: (p: TrackPoint) => void;
+  /** Most recent position while the app is open (drives the zone warning banner). */
+  latest: TrackPoint | null;
 }
 
-const HistoryContext = createContext<Ctx>({ points: () => [], add: () => {} });
+const HistoryContext = createContext<Ctx>({ points: () => [], add: () => {}, latest: null });
 
 export function LocationHistoryProvider({ children }: { children: ReactNode }) {
   const pts = useRef<TrackPoint[]>(load());
+  const [latest, setLatest] = useState<TrackPoint | null>(null);
 
   const add = useCallback((p: TrackPoint) => {
     const cutoff = Date.now() - WINDOW_MS;
     pts.current = [...pts.current.filter((x) => x.t >= cutoff), p].slice(-400);
     writeSetting(KEY, JSON.stringify(pts.current));
+    setLatest(p);
   }, []);
 
   useEffect(() => {
@@ -69,7 +73,8 @@ export function LocationHistoryProvider({ children }: { children: ReactNode }) {
     return pts.current.filter((p) => p.t >= cutoff);
   }, []);
 
-  return <HistoryContext.Provider value={{ points, add }}>{children}</HistoryContext.Provider>;
+  const value = useMemo(() => ({ points, add, latest }), [points, add, latest]);
+  return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>;
 }
 
 export const useLocationHistory = () => useContext(HistoryContext);

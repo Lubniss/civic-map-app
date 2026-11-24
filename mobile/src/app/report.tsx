@@ -100,6 +100,7 @@ export default function ReportScreen() {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
       queryClient.invalidateQueries({ queryKey: ['summary'] });
       queryClient.invalidateQueries({ queryKey: ['heatmap'] });
+      queryClient.invalidateQueries({ queryKey: ['me', 'reports'] });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
     } finally {

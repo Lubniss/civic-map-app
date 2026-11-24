@@ -45,6 +45,7 @@ All routes except `/health` need `Authorization: Bearer <Supabase access token>`
 | `GET /alerts/:id` | One alert with its reports, photo links, fix progress and the proof a fix needs |
 | `POST /reports` | `{lat, lng, category, severity, note?, photo_path?, timing?, reporter_lat, reporter_lng, gps_accuracy_m?, location_at}`; max 20 a day |
 | `POST /alerts/:id/confirm-fix` | `{photo_path, note?, reporter_lat, reporter_lng, gps_accuracy_m?, location_at}`; 3 people (not the first reporter) resolve it |
+| `GET /me/reports?page=0` | Your own reports (20 per page) with a plain-words status, including pending ones. Your own pending alerts also open via `GET /alerts/:id` (`onlyMine: true`) |
 | `GET /heatmap?bbox=...` | Heat points, including pending reports |
 | `GET /summary?bbox=...` or `?lat=&lng=&radius=` | Area headline, risk, breakdown, top issue, latest notes, `redZoneCategories` |
 

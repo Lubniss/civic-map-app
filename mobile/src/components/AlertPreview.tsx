@@ -4,7 +4,7 @@ import type { MapAlert } from '@/lib/types';
 import { categories, space, type BadgeName } from '@/theme/tokens';
 import { AppText } from './AppText';
 import { CategoryIcon } from './CategoryIcon';
-import { Badge, Card } from './ui';
+import { Badge, Button } from './ui';
 
 export function alertBadge(a: MapAlert): { kind: BadgeName; label: string } {
   if (a.status === 'red_zone') return { kind: 'redZone', label: 'Red zone' };
@@ -41,8 +41,8 @@ export function AlertPreviewHeader({ alert }: { alert: MapAlert }) {
   );
 }
 
-/** Short preview shown when a pin is tapped. Full detail (photos, Confirm it's fixed) comes in step 4. */
-export function AlertPreview({ alert }: { alert: MapAlert }) {
+/** Short preview shown when a pin is tapped, with a button to the full detail screen. */
+export function AlertPreview({ alert, onOpen }: { alert: MapAlert; onOpen: () => void }) {
   return (
     <>
       <AppText variant="body">{alertInfoLine(alert)}</AppText>
@@ -50,9 +50,7 @@ export function AlertPreview({ alert }: { alert: MapAlert }) {
         First reported {timeAgo(alert.createdAt)} · last update {timeAgo(alert.updatedAt)}
         {alert.fixCount ? ` · ${alert.fixCount}/3 fix confirmations` : ''}
       </AppText>
-      <Card>
-        <AppText variant="caption" color="muted">Photos, every report and "Confirm it's fixed" arrive in a later step.</AppText>
-      </Card>
+      <Button title="View details" onPress={onOpen} accessibilityHint="Photos, every report and Confirm it's fixed" />
     </>
   );
 }

@@ -3,6 +3,7 @@ import { CATEGORY_KEYS, EMERGENCY_CATEGORIES, isHot, isVisible, proofNeeded } fr
 import { ApiError, fromDbError } from '../src/errors.js';
 import { bboxAround, distanceM, parseBbox, parsePointEwkb } from '../src/geo.js';
 import { isPhotoFresh } from '../src/photoRules.js';
+import { myReportStatus } from '../src/routes/myReportStatus.js';
 import { reportMessage } from '../src/routes/reportMessage.js';
 import { confirmFixBody, parse, radiusQuery, reportBody } from '../src/schemas.js';
 
@@ -148,6 +149,22 @@ describe('database error mapping', () => {
     console.error = () => {};
     expect(fromDbError({ message: 'relation "x" does not exist' })).toMatchObject({ status: 500, code: 'SERVER_ERROR' });
     console.error = original;
+  });
+});
+
+describe('myReportStatus (My Reports labels)', () => {
+  const now = Date.parse('2026-11-24T12:00:00Z');
+  const a = (status: string, extra: Partial<{ reporter_count: number; expires_at: string | null; hot_until: string | null }> = {}) =>
+    ({ status, reporter_count: 1, expires_at: null, hot_until: null, ...extra });
+  it('explains every state in plain words', () => {
+    expect(myReportStatus(a('pending'), now).label).toBe('Waiting for 2 more reports');
+    expect(myReportStatus(a('pending', { reporter_count: 2 }), now).label).toBe('Waiting for 1 more report');
+    expect(myReportStatus(a('red_zone', { expires_at: '2026-11-25T19:00:00Z' }), now).label).toBe('Red zone · 31 h left');
+    expect(myReportStatus(a('red_zone', { expires_at: '2026-11-24T11:00:00Z' }), now)).toEqual({ key: 'expired', label: 'Expired' });
+    expect(myReportStatus(a('grey_zone', { hot_until: '2026-11-24T13:00:00Z' }), now).key).toBe('grey_zone_hot');
+    expect(myReportStatus(a('grey_zone', { hot_until: '2026-11-24T11:00:00Z' }), now).label).toBe('Incident area');
+    expect(myReportStatus(a('verified'), now).label).toBe('On the map');
+    expect(myReportStatus(a('resolved'), now).label).toBe('Fixed');
   });
 });
 

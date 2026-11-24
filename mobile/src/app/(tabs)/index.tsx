@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, type Region } from 'react-native-maps';
@@ -10,6 +11,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { useTabBarTop } from '@/components/FloatingTabBar';
 import { AlertMarker, HeatLayer } from '@/components/MapLayers';
 import { SosButton } from '@/components/SosButton';
+import { ZoneBanner } from '@/components/ZoneBanner';
 import { ApiError } from '@/lib/api';
 import { FALLBACK_REGION, isBboxTooLarge, regionToBbox } from '@/lib/geo';
 import { useMyLocation } from '@/lib/location';
@@ -116,6 +118,11 @@ export default function MapScreen() {
         <SummaryPill state={pillState} onPress={() => setSummaryOpen(true)} />
       </View>
 
+      {/* Zone warning banner: between the SOS button and the right-hand controls, so neither is covered */}
+      <View style={[styles.banner, { top: controlsTop }]} pointerEvents="box-none">
+        <ZoneBanner onOpen={setSelected} />
+      </View>
+
       {/* Left, under the pill and apart from the map controls: SOS (hold to call 112) */}
       <View style={[styles.left, { top: controlsTop }]} pointerEvents="box-none">
         <SosButton onHint={showHint} />
@@ -170,7 +177,16 @@ export default function MapScreen() {
         accessibilityLabel="Alert details"
         header={selected ? <AlertPreviewHeader alert={selected} /> : null}
       >
-        {selected ? <AlertPreview alert={selected} /> : null}
+        {selected ? (
+          <AlertPreview
+            alert={selected}
+            onOpen={() => {
+              const id = selected.id;
+              setSelected(null);
+              router.push({ pathname: '/alert/[id]', params: { id } });
+            }}
+          />
+        ) : null}
       </BottomSheet>
     </View>
   );
@@ -234,6 +250,7 @@ function RoundButton({ icon, label, onPress }: { icon: React.ComponentProps<type
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   pillWrap: { position: 'absolute', left: space.lg, right: space.lg },
+  banner: { position: 'absolute', left: space.lg + size.mapButton + space.md, right: space.lg + size.mapButton + 4 + space.md },
   left: { position: 'absolute', left: space.lg },
   right: { position: 'absolute', right: space.lg, gap: space.md },
   switch: {

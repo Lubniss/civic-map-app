@@ -45,6 +45,50 @@ export interface AreaSummary {
   latest: { category: Category; label: string; note: string | null; createdAt: string }[];
 }
 
+/** GET /alerts/:id */
+export interface AlertDetail {
+  alert: MapAlert & { verifiedAt: string | null; resolvedAt: string | null };
+  /** True when the alert isn't on the map (pending / expired) and only your own report is shown. */
+  onlyMine: boolean;
+  reports: {
+    id: string;
+    category: Category;
+    severity: number;
+    note: string | null;
+    timing: 'now' | 'recent' | null;
+    createdAt: string;
+    photoUrl: string | null;
+    isMine: boolean;
+  }[];
+  fixes: {
+    count: number;
+    needed: number;
+    proofNeeded: string;
+    confirmedByMe: boolean;
+    iAmFirstReporter: boolean;
+    items: { note: string | null; createdAt: string; photoUrl: string | null }[];
+  };
+}
+
+export type MyReportStatusKey = 'pending' | 'red_zone' | 'expired' | 'grey_zone_hot' | 'grey_zone' | 'verified' | 'resolved' | 'unknown';
+
+/** GET /me/reports item */
+export interface MyReport {
+  id: string;
+  alertId: string;
+  category: Category;
+  severity: number;
+  note: string | null;
+  timing: 'now' | 'recent' | null;
+  lat: number;
+  lng: number;
+  createdAt: string;
+  photoUrl: string | null;
+  status: { key: MyReportStatusKey; label: string };
+  reporterCount: number;
+  fixCount: number;
+}
+
 export interface Bbox {
   minLng: number;
   minLat: number;

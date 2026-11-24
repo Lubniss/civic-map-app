@@ -1,14 +1,26 @@
 // Google map styles (Android). iPhone in Expo Go uses Apple Maps, which follows light/dark via
 // `userInterfaceStyle` and can't be custom-styled.
 //
-// Light: Google's own full-colour default (an empty style array resets any previous custom style),
+// Light: Google's own full-colour default, plus soft pastel ground tints per place type,
 //        so parks, water, warm highways and Google's colour-coded place icons all show.
 // Dark:  rich, higher-contrast night style: deep blue water, forest-green parks, clearly separated
 //        roads with warm amber highways, and category-coloured place names. Google's place icons stay on.
 import type { MapStyleElement } from 'react-native-maps';
 import type { SchemeName } from './tokens';
 
-const LIGHT: MapStyleElement[] = [];
+// Light: Google's full-colour default + soft pastel ground tints that match each place's icon colour.
+// Only `geometry` / `geometry.fill` / building strokes are touched, never labels or icons, and nothing is desaturated.
+const LIGHT: MapStyleElement[] = [
+  { featureType: 'poi.school', elementType: 'geometry.fill', stylers: [{ color: '#E3E6F7' }] },
+  { featureType: 'poi.medical', elementType: 'geometry.fill', stylers: [{ color: '#FBE8EC' }] },
+  { featureType: 'poi.business', elementType: 'geometry.fill', stylers: [{ color: '#FBEBDA' }] },
+  { featureType: 'poi.park', elementType: 'geometry.fill', stylers: [{ color: '#CBEBC3' }] },
+  { featureType: 'poi.sports_complex', elementType: 'geometry.fill', stylers: [{ color: '#D2EECA' }] },
+  { featureType: 'transit.station', elementType: 'geometry.fill', stylers: [{ color: '#DCEEFB' }] },
+  { featureType: 'poi.place_of_worship', elementType: 'geometry.fill', stylers: [{ color: '#ECE4F8' }] },
+  { featureType: 'poi.attraction', elementType: 'geometry.fill', stylers: [{ color: '#DCF1EE' }] },
+  { featureType: 'landscape.man_made', elementType: 'geometry.stroke', stylers: [{ color: '#D6D0C6' }] },
+];
 
 const DARK: MapStyleElement[] = [
   // Base
@@ -54,7 +66,15 @@ const DARK: MapStyleElement[] = [
   // Transit: blue
   { featureType: 'transit.line', elementType: 'geometry', stylers: [{ color: '#3A4E66' }] },
   { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#7FB2F0' }] },
-  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#24364A' }] },
+  { featureType: 'transit.station', elementType: 'geometry.fill', stylers: [{ color: '#24364A' }] },
+
+  // Deep, subtle ground tints matching each place's icon colour
+  { featureType: 'poi.school', elementType: 'geometry.fill', stylers: [{ color: '#232B42' }] },
+  { featureType: 'poi.medical', elementType: 'geometry.fill', stylers: [{ color: '#3A2830' }] },
+  { featureType: 'poi.business', elementType: 'geometry.fill', stylers: [{ color: '#382E23' }] },
+  { featureType: 'poi.place_of_worship', elementType: 'geometry.fill', stylers: [{ color: '#2E2842' }] },
+  { featureType: 'poi.attraction', elementType: 'geometry.fill', stylers: [{ color: '#1E3634' }] },
+  { featureType: 'landscape.man_made', elementType: 'geometry.stroke', stylers: [{ color: '#33433F' }] },
 ];
 
 export function googleMapStyle(scheme: SchemeName): MapStyleElement[] {
