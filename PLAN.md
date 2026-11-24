@@ -193,11 +193,14 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - **Cards:** a 1 px border in both modes, and Android elevation 1 only.
 
 *Visual upgrade (after step 3):*
-- **Livelier map base (Android, Google Maps):**
-  - soft green parks, blue water, warm muted highways
-  - visible street, neighbourhood and place names
-  - about 15–20% less saturated than Google's defaults, so pins and red zones stand out
-  - Google's own place icons hidden
+- **Map base (Android, Google Maps), revised after phone testing:**
+  - **Light** uses Google's own full-colour default style, with no overrides. Parks, water, highways and Google's colour-coded place icons all show.
+  - **Dark** is a rich, higher-contrast custom style:
+    - water `#173D5C`, parks `#183D2D`
+    - local roads `#2D3A46`, arterials `#3A4A5A`, warm amber highways `#8A6A2E`
+    - category-coloured place names: amber for food and business, teal for schools, violet for government and worship, coral for medical, blue for transit
+    - Google's place icons left on
+  - The earlier muted style (−15–20%) was dropped because roads blended into the land.
 - **Tab bar:** a symmetric 2–1–2 layout with the **+** exactly centred: **Map · Routes · (+) · My Reports · Profile**. "Routes" is a placeholder until phase 6.
 
 *Proposed, waiting for the user's OK: zoomed-in place icons*
