@@ -1,0 +1,22 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# dependencies and builds
+node_modules/
+dist/
+build/
+.expo/
+web-build/
+*.tsbuildinfo
+
+# native folders (Expo generates these)
+mobile/android/
+mobile/ios/
+
+# logs and OS files
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db
