@@ -123,6 +123,23 @@ civic-map-app/
 
 **Config:** `mobile/.env` holds `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` and `EXPO_PUBLIC_API_URL`. That last one is this PC's local network address during development and the Render URL later. The anon key is safe in the app; the service key goes only in `server/.env`.
 
+## Phase 0: Supabase setup steps (done by the user)
+1. Go to https://supabase.com and sign up (free plan, no card).
+2. **New project:** name `civic-map`, set a strong database password and save it in your password manager, and pick the region closest to your users (for India: Mumbai, `ap-south-1`). Wait about 2 minutes for it to start.
+3. **Turn on PostGIS:** Database → Extensions → search `postgis` → enable it.
+4. **Email code login:** Authentication → Sign In / Providers → Email: make sure it's enabled. Then Authentication → Emails → Templates → **Magic Link**: replace the body with:
+   ```
+   <h2>Your Civic Map code</h2>
+   <p>Enter this code in the app: <strong>{{ .Token }}</strong></p>
+   ```
+   and save. (The app asks for this 6-digit code instead of a link.)
+5. **Copy keys:** Project Settings → API (or API Keys):
+   - `Project URL` → put in **both** `server/.env` (`SUPABASE_URL`) and `mobile/.env` (`EXPO_PUBLIC_SUPABASE_URL`).
+   - `anon` / publishable key → `mobile/.env` (`EXPO_PUBLIC_SUPABASE_ANON_KEY`).
+   - `service_role` / secret key → `server/.env` only (`SUPABASE_SERVICE_ROLE_KEY`). Never share it or put it in the app.
+   - Create the two `.env` files by copying the `.env.example` files next to them. Git ignores `.env`, so keys never reach GitHub.
+6. Free-plan note: Supabase pauses projects after 7 days without activity; un-pause from the dashboard.
+
 ## Phases (in order)
 0. **Setup:**
    - Install Git with winget and create the folder and the GitHub repo.
