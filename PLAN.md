@@ -10,7 +10,7 @@
 | 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category â†’ now/recent â†’ Call 112 â†’ crosshair pin with 300 m check and street name â†’ details with camera photo â†’ result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
 | 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. **Real SMS deferred by the user**: the switch stays off (anyone signed in can report). To finish later: set up Twilio Verify (steps below), test, then set `REQUIRE_PHONE_VERIFICATION=true` |
 | 6. Fastest vs. Safest Route | Done: `003_routes.sql` applied; unit tests 52/52; live route test 11/11 (3 red zones on the fastest route, the safest avoids 2: risk 135 -> 24.5, +1 min). Needs a check on the phones |
-| 7. Deploy | Not started |
+| 7. Deploy | `render.yaml` ready and production build checked (smoke 45/45 on `npm start`). Waiting for the user to create the Render service |
 | 8. Notifications (push + zone-entry alerts) | Not started |
 
 ## Context
@@ -412,6 +412,22 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - It picks between routes but doesn't give turn-by-turn directions.
 
 ## Phase 7: Deploy
+**As built:**
+- **`render.yaml` (Blueprint)** at the repo root:
+  - a free web service `civic-map-server` in the Singapore region, from `server/`
+  - build `npm ci --include=dev && npm run build`, start `npm start`, health check `/health`, auto-deploy on push, Node 24
+  - secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ORS_API_KEY`) are typed into Render by the user, never committed; `REQUIRE_PHONE_VERIFICATION=false`
+- **Production build checked locally:** `npm run build && npm start` passes smoke 45/45.
+- **Free plan sleeps after ~15 min idle** (up to ~1 min to wake). The app's request timeout is 75 s, with a "server may be waking up" message.
+
+**User steps:**
+1. Sign up at https://render.com with GitHub. Allow access to the `Lubniss/civic-map-app` repo (private is fine).
+2. **New → Blueprint**, then pick `civic-map-app`. Render reads `render.yaml`.
+3. When asked, paste the three secret values from `server/.env`, then **Apply**.
+4. Wait for "Live" (about 3–5 min), then copy the URL (e.g. `https://civic-map-server.onrender.com`).
+5. Put that URL in `mobile/.env` as `EXPO_PUBLIC_API_URL` and restart Expo with `--clear`.
+
+**Original plan:**
 - Put the server on Render with `render.yaml`, building from GitHub. The secret key goes only into Render's environment settings.
 - Point the app at the Render URL.
 

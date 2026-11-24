@@ -8,7 +8,8 @@ export class ApiError extends Error {
   }
 }
 
-const TIMEOUT_MS = 15_000;
+/** Render's free plan sleeps when idle and can take up to ~1 minute to wake, so allow for that. */
+const TIMEOUT_MS = 75_000;
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -28,8 +29,15 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: controller.signal,
     });
-  } catch {
-    throw new ApiError(0, 'NETWORK', "Can't reach the Civic Map server. Check your internet connection.");
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === 'AbortError';
+    throw new ApiError(
+      0,
+      'NETWORK',
+      timedOut
+        ? 'The Civic Map server is taking too long (it may be waking up). Try again in a moment.'
+        : "Can't reach the Civic Map server. Check your internet connection.",
+    );
   } finally {
     clearTimeout(timer);
   }

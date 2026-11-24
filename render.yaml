@@ -1,0 +1,25 @@
+# Render Blueprint for the Civic Map API (phase 7).
+# Render → New → Blueprint → pick this repo. Secrets (sync: false) are typed into Render's dashboard,
+# never committed here.
+services:
+  - type: web
+    name: civic-map-server
+    runtime: node
+    rootDir: server
+    region: singapore # closest Render region to India
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ORS_API_KEY
+        sync: false
+      - key: REQUIRE_PHONE_VERIFICATION
+        value: "false"
