@@ -82,11 +82,21 @@ const P = { lat: 0.5, lng: 0.5 };
 const near = (m) => ({ lat: P.lat + m / 111_320, lng: P.lng });
 const BBOX = '0.49,0.49,0.51,0.51';
 
-async function report(name, point, category, severity = 2, note = 'smoke test') {
-  const photo = await uploadPhoto(name);
-  if (!photo.ok) return { status: photo.status, ok: false, data: 'upload failed' };
+// The reporter stands on the spot with good GPS (the 300 m rule), unless opts.from says otherwise.
+const here = (p, accuracy = 10) => ({
+  reporter_lat: p.lat, reporter_lng: p.lng, gps_accuracy_m: accuracy, location_at: new Date().toISOString(),
+});
+
+async function report(name, point, category, severity = 2, note = 'smoke test', opts = {}) {
+  let photo_path = null;
+  if (opts.photo !== false) {
+    const photo = await uploadPhoto(name);
+    if (!photo.ok) return { status: photo.status, ok: false, data: 'upload failed' };
+    photo_path = photo.path;
+  }
   const r = await api('/reports', users[name].token, {
-    method: 'POST', body: { ...point, category, severity, note, photo_path: photo.path },
+    method: 'POST',
+    body: { ...point, category, severity, note, photo_path, timing: opts.timing ?? null, ...here(opts.from ?? point) },
   });
   if (r.ok) alertIds.add(r.data.alertId);
   return r;
@@ -128,15 +138,20 @@ async function run() {
   check('GET /alerts/:id is 404 while pending', hidden.status === 404, short(hidden));
 
   const noPhoto = await api('/reports', users.B.token, {
-    method: 'POST', body: { ...P, category: 'garbage', severity: 2, photo_path: `${users.B.id}/never-uploaded.jpg` },
+    method: 'POST', body: { ...P, category: 'garbage', severity: 2, photo_path: `${users.B.id}/never-uploaded.jpg`, ...here(P) },
   });
   check('report with a photo that was never uploaded -> 400', noPhoto.status === 400 && noPhoto.data.error.code === 'PHOTO_NOT_FOUND', short(noPhoto));
   const theft = await api('/reports', users.B.token, {
-    method: 'POST', body: { ...P, category: 'garbage', severity: 2, photo_path: own.path },
+    method: 'POST', body: { ...P, category: 'garbage', severity: 2, photo_path: own.path, ...here(P) },
   });
   check("report using someone else's photo -> 400", theft.status === 400, short(theft));
   const badBody = await api('/reports', users.B.token, { method: 'POST', body: { ...P, category: 'aliens', severity: 9 } });
   check('bad report body -> 400 with a message', badBody.status === 400 && !!badBody.data.error.message, short(badBody));
+  const tooFar = await report('B', P, 'garbage', 2, 'from home', { from: near(800) });
+  check('reporting from 800 m away -> 403 "within 300 m"', tooFar.status === 403 && tooFar.data.error.code === 'TOO_FAR'
+    && tooFar.data.error.message.includes('300 m'), short(tooFar));
+  const noPic = await report('B', P, 'garbage', 2, 'no photo', { photo: false });
+  check('garbage without a photo -> 400', noPic.status === 400 && noPic.data.error.message.includes('photo'), short(noPic));
 
   const r2 = await report('B', near(80), 'garbage', 3, 'Smells bad');
   const r3 = await report('C', near(-60), 'garbage', 2, 'Dumped near the bus stop');
@@ -159,9 +174,17 @@ async function run() {
     check('photo link actually opens the image', img.ok && (img.headers.get('content-type') ?? '').includes('image'), `HTTP ${img.status}`);
   }
 
-  console.log('\nRed zone');
-  const u = await report('D', near(500), 'unsafe', 3, 'Men following people at night');
-  check('one unsafe report -> red zone shown at once', u.data?.status === 'red_zone' && u.data?.shownOnMap && !!u.data?.expiresAt, short(u));
+  console.log('\nRed zones');
+  const noTiming = await report('D', near(500), 'unsafe', 3, 'x', { photo: false });
+  check('emergency without "now"/"recent" -> 400', noTiming.status === 400, short(noTiming));
+  const u = await report('D', near(500), 'unsafe', 3, 'Men following people at night', { timing: 'now', photo: false });
+  check('one unsafe report, no photo -> red zone shown at once', u.data?.status === 'red_zone' && u.data?.shownOnMap && !!u.data?.expiresAt, short(u));
+  check('message says 48 hours', u.data?.message?.includes('48 hours'), u.data?.message);
+  const fire = await report('A', { lat: 0.505, lng: 0.505 }, 'fire', 3, 'Shop on fire', { timing: 'now', photo: false });
+  check('one fire report -> red zone, message says 6 hours', fire.data?.status === 'red_zone' && fire.data?.message?.includes('6 hours'), short(fire));
+  list = await api(`/alerts?bbox=${BBOX}`, users.B.token);
+  const redPin = list.data?.alerts?.find((a) => a.id === u.data?.alertId);
+  check('GET /alerts marks the red zone as emergency + hot', redPin?.emergency === true && redPin?.hot === true, JSON.stringify(redPin));
 
   console.log('\nArea summary');
   const sum = await api(`/summary?bbox=${BBOX}`, users.D.token);
@@ -175,12 +198,15 @@ async function run() {
   check('a huge map area is refused (400)', badBox.status === 400 && badBox.data.error.code === 'BBOX_TOO_LARGE', short(badBox));
 
   console.log('\nFix confirmations');
-  const confirm = async (n) => {
+  check('alert detail says what proof a fix needs', detail.data?.fixes?.proofNeeded?.includes('waste has been cleared'), JSON.stringify(detail.data?.fixes));
+  const confirm = async (n, from = P) => {
     const photo = await uploadPhoto(n);
-    return api(`/alerts/${id}/confirm-fix`, users[n].token, { method: 'POST', body: { photo_path: photo.path, note: 'cleaned up' } });
+    return api(`/alerts/${id}/confirm-fix`, users[n].token, { method: 'POST', body: { photo_path: photo.path, note: 'cleaned up', ...here(from) } });
   };
   const fA = await confirm('A');
   check('first reporter cannot confirm (403)', fA.status === 403, short(fA));
+  const fFar = await confirm('B', near(700));
+  check('confirming from 700 m away -> 403', fFar.status === 403 && fFar.data.error.code === 'TOO_FAR', short(fFar));
   const fB = await confirm('B');
   check('1st confirmation: 1 of 3', fB.ok && fB.data.fixCount === 1 && !fB.data.resolved, short(fB));
   const fB2 = await confirm('B');

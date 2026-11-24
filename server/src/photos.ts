@@ -1,7 +1,11 @@
 import { db, PHOTO_BUCKET } from './db.js';
 import { ApiError } from './errors.js';
+import { isPhotoFresh, PHOTO_MAX_AGE_MINUTES } from './photoRules.js';
 
-/** The app uploads photos to "<user_id>/<file>" first; this checks the file is really there. */
+/**
+ * The app uploads photos to "<user_id>/<file>" first; this checks the file is really there
+ * and was uploaded in the last 15 minutes (no reusing old photos).
+ */
 export async function assertOwnPhoto(userId: string, path: string): Promise<void> {
   const prefix = `${userId}/`;
   const name = path.startsWith(prefix) ? path.slice(prefix.length) : '';
@@ -13,8 +17,12 @@ export async function assertOwnPhoto(userId: string, path: string): Promise<void
     console.error('Storage list failed:', error);
     throw new ApiError(500, 'SERVER_ERROR', 'Could not check the photo. Try again.');
   }
-  if (!data?.some((f) => f.name === name)) {
+  const file = data?.find((f) => f.name === name);
+  if (!file) {
     throw new ApiError(400, 'PHOTO_NOT_FOUND', 'The photo did not finish uploading. Try again.');
+  }
+  if (!isPhotoFresh(file.created_at)) {
+    throw new ApiError(400, 'PHOTO_TOO_OLD', `Take a new photo. Photos must be from the last ${PHOTO_MAX_AGE_MINUTES} minutes.`);
   }
 }
 

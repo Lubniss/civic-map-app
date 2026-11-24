@@ -70,6 +70,13 @@ describe('headline', () => {
     expect(headline(analyze(reports, NOW))).toBe('An unsafe area.');
   });
 
+  it('words Fire and Accident red zones', () => {
+    const reports = [...many(4, 'garbage'), { ...r('fire', 3), inRedZone: true }, { ...r('accident', 2), inRedZone: true }];
+    const text = headline(analyze(reports, NOW));
+    expect(text).toContain('fire incidents');
+    expect(text).toContain('accidents');
+  });
+
   it('lists up to three extra issues with commas', () => {
     const reports = [...many(6, 'garbage'), ...many(3, 'water'), ...many(3, 'road'), ...many(3, 'light'), ...many(2, 'other')];
     expect(headline(analyze(reports, NOW))).toBe(

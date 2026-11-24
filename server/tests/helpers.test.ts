@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isVisible } from '../src/categories.js';
+import { CATEGORY_KEYS, EMERGENCY_CATEGORIES, isHot, isVisible, proofNeeded } from '../src/categories.js';
 import { ApiError, fromDbError } from '../src/errors.js';
 import { bboxAround, distanceM, parseBbox, parsePointEwkb } from '../src/geo.js';
+import { isPhotoFresh } from '../src/photoRules.js';
 import { reportMessage } from '../src/routes/reportMessage.js';
-import { parse, radiusQuery, reportBody } from '../src/schemas.js';
+import { confirmFixBody, parse, radiusQuery, reportBody } from '../src/schemas.js';
 
 const USER = '11111111-1111-4111-8111-111111111111';
 
@@ -56,19 +57,53 @@ describe('parsePointEwkb', () => {
   });
 });
 
-describe('isVisible (same rule as the database)', () => {
+describe('categories', () => {
+  it('has Fire and Accident, and 4 emergency categories', () => {
+    expect(CATEGORY_KEYS).toContain('fire');
+    expect(CATEGORY_KEYS).toContain('accident');
+    expect([...EMERGENCY_CATEGORIES].sort()).toEqual(['accident', 'fire', 'harassment', 'unsafe']);
+  });
+  it('asks for the right proof of a fix', () => {
+    expect(proofNeeded('harassment')).toContain('CCTV');
+    expect(proofNeeded('accident')).toContain('road is cleared');
+    expect(proofNeeded('fire')).toContain('fire is out');
+  });
+});
+
+describe('isVisible / isHot (same rules as the database)', () => {
   const now = Date.parse('2026-11-24T12:00:00Z');
-  it('shows verified alerts and active red zones only', () => {
+  it('shows verified alerts, grey zones and active red zones only', () => {
     expect(isVisible('verified', null, now)).toBe(true);
+    expect(isVisible('grey_zone', null, now)).toBe(true);
     expect(isVisible('red_zone', '2026-11-25T12:00:00Z', now)).toBe(true);
     expect(isVisible('red_zone', '2026-11-24T11:00:00Z', now)).toBe(false);
     expect(isVisible('pending', null, now)).toBe(false);
     expect(isVisible('resolved', null, now)).toBe(false);
   });
+  it('draws red zones and recent grey zones in red', () => {
+    expect(isHot('red_zone', null, now)).toBe(true);
+    expect(isHot('grey_zone', '2026-11-24T13:00:00Z', now)).toBe(true);
+    expect(isHot('grey_zone', '2026-11-24T11:00:00Z', now)).toBe(false);
+    expect(isHot('verified', null, now)).toBe(false);
+  });
+});
+
+describe('photo freshness', () => {
+  const now = Date.parse('2026-11-24T12:00:00Z');
+  it('accepts photos uploaded in the last 15 minutes', () => {
+    expect(isPhotoFresh('2026-11-24T11:50:00Z', now)).toBe(true);
+    expect(isPhotoFresh('2026-11-24T12:00:30Z', now)).toBe(true); // small clock difference
+  });
+  it('refuses old, missing or nonsense times', () => {
+    expect(isPhotoFresh('2026-11-24T11:40:00Z', now)).toBe(false);
+    expect(isPhotoFresh(null, now)).toBe(false);
+    expect(isPhotoFresh('yesterday', now)).toBe(false);
+  });
 });
 
 describe('input validation', () => {
-  const good = { lat: 28.6, lng: 77.2, category: 'garbage', severity: 2, note: 'bins', photo_path: `${USER}/a.jpg` };
+  const where = { reporter_lat: 28.6, reporter_lng: 77.2, gps_accuracy_m: 12, location_at: '2026-11-24T12:00:00.000Z' };
+  const good = { lat: 28.6, lng: 77.2, category: 'garbage', severity: 2, note: 'bins', photo_path: `${USER}/a.jpg`, ...where };
   it('accepts a good report', () => {
     expect(parse(reportBody, good)).toMatchObject({ category: 'garbage', severity: 2 });
   });
@@ -77,7 +112,21 @@ describe('input validation', () => {
     expectApiError(() => parse(reportBody, { ...good, severity: 4 }), 400, 'INVALID_INPUT');
     expectApiError(() => parse(reportBody, { ...good, lat: 95 }), 400, 'INVALID_INPUT');
     expectApiError(() => parse(reportBody, { ...good, note: 'x'.repeat(501) }), 400, 'INVALID_INPUT');
+  });
+  it('needs a photo for normal categories but not for emergencies', () => {
     expectApiError(() => parse(reportBody, { ...good, photo_path: undefined }), 400, 'INVALID_INPUT');
+    expect(parse(reportBody, { ...good, category: 'fire', timing: 'now', photo_path: undefined }).category).toBe('fire');
+  });
+  it('needs "now" or "recent" for emergencies, and allows "recent" only for emergencies', () => {
+    expectApiError(() => parse(reportBody, { ...good, category: 'harassment' }), 400, 'INVALID_INPUT');
+    expect(parse(reportBody, { ...good, category: 'harassment', timing: 'recent' }).timing).toBe('recent');
+    expectApiError(() => parse(reportBody, { ...good, timing: 'recent' }), 400, 'INVALID_INPUT');
+  });
+  it("needs the reporter's location and time", () => {
+    expectApiError(() => parse(reportBody, { ...good, reporter_lat: undefined }), 400, 'INVALID_INPUT');
+    expectApiError(() => parse(reportBody, { ...good, location_at: 'today' }), 400, 'INVALID_INPUT');
+    expectApiError(() => parse(confirmFixBody, { photo_path: `${USER}/b.jpg` }), 400, 'INVALID_INPUT');
+    expect(parse(confirmFixBody, { photo_path: `${USER}/b.jpg`, ...where }).reporter_lat).toBe(28.6);
   });
   it('defaults the summary radius to 300 m and caps it at 2 km', () => {
     expect(parse(radiusQuery, { lat: '28.6', lng: '77.2' }).radius).toBe(300);
@@ -90,6 +139,9 @@ describe('database error mapping', () => {
     expect(fromDbError({ message: 'REPORTER_CANNOT_CONFIRM' })).toMatchObject({ status: 403, code: 'REPORTER_CANNOT_CONFIRM' });
     expect(fromDbError({ message: 'ALREADY_CONFIRMED' })).toMatchObject({ status: 409 });
     expect(fromDbError({ message: 'ALERT_NOT_FOUND' })).toMatchObject({ status: 404 });
+    expect(fromDbError({ message: 'TOO_FAR' })).toMatchObject({ status: 403, message: expect.stringContaining('300 m') });
+    expect(fromDbError({ message: 'LOCATION_TOO_OLD' })).toMatchObject({ status: 400 });
+    expect(fromDbError({ message: 'PHOTO_REQUIRED' })).toMatchObject({ status: 400 });
   });
   it('hides unknown database errors behind a 500', () => {
     const original = console.error;
@@ -101,11 +153,15 @@ describe('database error mapping', () => {
 
 describe('reportMessage', () => {
   it('explains what happens next', () => {
-    expect(reportMessage({ status: 'pending', reporter_count: 1, is_new_alert: true }))
+    expect(reportMessage({ status: 'pending', reporter_count: 1, is_new_alert: true }, 'garbage'))
       .toBe('Thanks! A pin appears once 3 people report this (1 of 3 so far).');
-    expect(reportMessage({ status: 'red_zone', reporter_count: 1, is_new_alert: true }))
-      .toContain('Red zone created');
-    expect(reportMessage({ status: 'verified', reporter_count: 3, is_new_alert: false }))
+    expect(reportMessage({ status: 'red_zone', reporter_count: 1, is_new_alert: true }, 'unsafe'))
+      .toBe('Red zone created. It shows on the map for 48 hours unless more people report it.');
+    expect(reportMessage({ status: 'red_zone', reporter_count: 1, is_new_alert: true }, 'fire'))
+      .toContain('6 hours');
+    expect(reportMessage({ status: 'grey_zone', reporter_count: 3, is_new_alert: false }, 'harassment'))
+      .toContain('incident area');
+    expect(reportMessage({ status: 'verified', reporter_count: 3, is_new_alert: false }, 'garbage'))
       .toContain('shows on the map');
   });
 });

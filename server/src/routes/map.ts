@@ -25,7 +25,7 @@ mapRouter.get('/heatmap', async (req, res) => {
 // GET /summary?lat=&lng=&radius= (around a tapped spot; radius 50-2000 m, default 300)
 // Uses the same alerts as the pins: verified alerts and active red zones.
 mapRouter.get('/summary', async (req, res) => {
-  let alerts: { id: string; status: string }[];
+  let alerts: { id: string; status: string; hot?: boolean }[];
   let scope: string;
 
   if (req.query.bbox !== undefined) {
@@ -39,7 +39,8 @@ mapRouter.get('/summary', async (req, res) => {
     scope = `Within ${q.radius} m of the selected spot`;
   }
   const alertIds = alerts.map((a) => a.id);
-  const redZoneIds = new Set(alerts.filter((a) => a.status === 'red_zone').map((a) => a.id));
+  // Red zones and recent ("hot") grey zones are always mentioned in the headline.
+  const redZoneIds = new Set(alerts.filter((a) => a.status === 'red_zone' || a.hot === true).map((a) => a.id));
 
   let reports: SummaryReport[] = [];
   if (alertIds.length) {

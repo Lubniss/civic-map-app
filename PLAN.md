@@ -6,7 +6,7 @@
 | 0. Setup | Done: repo, Supabase project (Gmail SMTP, OTP templates, PostGIS in `extensions` schema), .env files filled |
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
-| 3. Report rules update | Not started |
+| 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
 | 4. Mobile core app | Not started (design agreed: see "Look & design" and the Phase 4 checklist) |
 | 5. Phone SMS check | Not started |
 | 6. Fastest vs. Safest Route | Not started |

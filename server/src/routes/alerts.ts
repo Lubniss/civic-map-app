@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { me } from '../auth.js';
-import { isVisible } from '../categories.js';
+import { isEmergency, isHot, isVisible, proofNeeded } from '../categories.js';
 import { db } from '../db.js';
 import { ApiError, fromDbError } from '../errors.js';
 import { parseBbox, parsePointEwkb } from '../geo.js';
@@ -21,6 +21,8 @@ interface AlertRow {
   avg_severity: number | string;
   fix_count: number;
   expires_at: string | null;
+  hot_until: string | null;
+  hot?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +31,9 @@ export const toAlertJson = (a: AlertRow) => ({
   id: a.id,
   category: a.category,
   status: a.status,
+  emergency: isEmergency(a.category),
+  /** Draw red when true (red zones and recent grey zones), grey when a grey zone has cooled. */
+  hot: a.hot ?? isHot(a.status, a.hot_until),
   lat: a.lat,
   lng: a.lng,
   reporterCount: a.reporter_count,
@@ -36,11 +41,12 @@ export const toAlertJson = (a: AlertRow) => ({
   avgSeverity: Number(a.avg_severity),
   fixCount: a.fix_count,
   expiresAt: a.expires_at,
+  hotUntil: a.hot_until,
   createdAt: a.created_at,
   updatedAt: a.updated_at,
 });
 
-/** Visible alerts (verified + active red zones) in the map area. */
+/** Visible alerts (verified, grey zones, active red zones) in the map area. */
 export async function visibleAlertsInBbox(bboxParam: unknown, maxRows = 500): Promise<AlertRow[]> {
   const b = parseBbox(bboxParam);
   const { data, error } = await db.rpc('alerts_in_bbox', {
@@ -63,7 +69,7 @@ alertsRouter.get('/:id', async (req, res) => {
 
   const { data: alert, error } = await db
     .from('alerts')
-    .select('id, category, status, location, reporter_count, report_count, avg_severity, fix_count, first_reporter_id, expires_at, created_at, updated_at, verified_at, resolved_at')
+    .select('id, category, status, location, reporter_count, report_count, avg_severity, fix_count, first_reporter_id, expires_at, hot_until, created_at, updated_at, verified_at, resolved_at')
     .eq('id', id)
     .maybeSingle();
   if (error) throw fromDbError(error);
@@ -73,7 +79,7 @@ alertsRouter.get('/:id', async (req, res) => {
   }
 
   const [reportsRes, fixesRes] = await Promise.all([
-    db.from('reports').select('id, user_id, category, severity, note, photo_path, created_at')
+    db.from('reports').select('id, user_id, category, severity, note, photo_path, timing, created_at')
       .eq('alert_id', id).order('created_at', { ascending: false }).limit(50),
     db.from('fix_confirmations').select('user_id, photo_path, note, created_at')
       .eq('alert_id', id).order('created_at', { ascending: false }),
@@ -97,13 +103,15 @@ alertsRouter.get('/:id', async (req, res) => {
       category: r.category,
       severity: r.severity,
       note: r.note,
+      timing: r.timing,
       createdAt: r.created_at,
-      photoUrl: urls.get(r.photo_path) ?? null,
+      photoUrl: r.photo_path ? urls.get(r.photo_path) ?? null : null,
       isMine: r.user_id === user.id,
     })),
     fixes: {
       count: alert.fix_count,
       needed: FIXES_NEEDED,
+      proofNeeded: proofNeeded(alert.category),
       confirmedByMe: fixes.some((f) => f.user_id === user.id),
       iAmFirstReporter: alert.first_reporter_id === user.id,
       items: fixes.map((f) => ({ note: f.note, createdAt: f.created_at, photoUrl: urls.get(f.photo_path) ?? null })),
@@ -111,7 +119,7 @@ alertsRouter.get('/:id', async (req, res) => {
   });
 });
 
-// POST /alerts/:id/confirm-fix  { photo_path, note? }
+// POST /alerts/:id/confirm-fix  { photo_path, note?, reporter_lat, reporter_lng, gps_accuracy_m?, location_at }
 alertsRouter.post('/:id/confirm-fix', async (req, res) => {
   const { id } = parse(alertIdParam, req.params);
   const body = parse(confirmFixBody, req.body);
@@ -119,7 +127,14 @@ alertsRouter.post('/:id/confirm-fix', async (req, res) => {
 
   await assertOwnPhoto(user.id, body.photo_path);
   const { data, error } = await db.rpc('confirm_fix', {
-    p_user_id: user.id, p_alert_id: id, p_photo_path: body.photo_path, p_note: body.note ?? null,
+    p_user_id: user.id,
+    p_alert_id: id,
+    p_photo_path: body.photo_path,
+    p_note: body.note ?? null,
+    p_reporter_lat: body.reporter_lat,
+    p_reporter_lng: body.reporter_lng,
+    p_gps_accuracy_m: body.gps_accuracy_m ?? null,
+    p_location_at: body.location_at,
   });
   if (error) throw fromDbError(error);
   const row = (data as { status: string; fix_count: number; resolved: boolean }[])[0]!;
