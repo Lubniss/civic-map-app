@@ -358,6 +358,10 @@ alter table public.fix_confirmations enable row level security;
 
 revoke all on public.profiles, public.alerts, public.reports, public.fix_confirmations from anon, authenticated;
 
+-- Newer Supabase projects no longer grant new tables to service_role automatically.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on public.profiles, public.alerts, public.reports, public.fix_confirmations to service_role;
+
 -- Only the server may call the functions (submit_report takes a user id,
 -- so it must never be callable from the app).
 revoke execute on function public.submit_report(uuid, double precision, double precision, text, integer, text, text) from public, anon, authenticated;
