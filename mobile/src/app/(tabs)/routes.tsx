@@ -1,52 +1,344 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import * as Location from 'expo-location';
+import { router } from 'expo-router';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
-import { useTabBarSpace } from '@/components/FloatingTabBar';
-import { Badge, Card } from '@/components/ui';
+import { CategoryPin } from '@/components/CategoryIcon';
+import { useTabBarTop } from '@/components/FloatingTabBar';
+import { Badge, Button, Card, Segmented } from '@/components/ui';
+import { api } from '@/lib/api';
+import { FALLBACK_REGION } from '@/lib/geo';
+import { useStreetName } from '@/lib/streetName';
+import type { Place, PlannedRoute, RoutePlan, RouteRiskLevel } from '@/lib/types';
+import { googleMapStyle } from '@/theme/mapStyle';
 import { useTheme } from '@/theme/ThemeProvider';
-import { radius, space } from '@/theme/tokens';
+import { radius, size, space, type as typeScale, type BadgeName } from '@/theme/tokens';
 
-// Placeholder until phase 6 (Fastest vs. Safest Route).
+type Mode = 'walking' | 'driving';
+type Which = 'safest' | 'fastest';
+
+const RISK_BADGE: Record<RouteRiskLevel, { kind: BadgeName; label: string }> = {
+  Safe: { kind: 'riskLow', label: 'Safe' },
+  Moderate: { kind: 'riskModerate', label: 'Moderate risk' },
+  High: { kind: 'riskHigh', label: 'High risk' },
+};
+
+const minutes = (s: number) => {
+  const m = Math.max(1, Math.round(s / 60));
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+};
+const km = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
+
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
 export default function RoutesScreen() {
-  const { colors } = useTheme();
+  const { colors, scheme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomSpace = useTabBarSpace();
+  const tabBarTop = useTabBarTop();
+  const mapRef = useRef<MapView>(null);
+  const mapStyle = useMemo(() => googleMapStyle(scheme), [scheme]);
 
-  const row = (icon: React.ComponentProps<typeof Ionicons>['name'], title: string, body: string) => (
-    <View style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: colors.cardAlt }]}>
-        <Ionicons name={icon} size={20} color={colors.accentText} />
+  const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
+  const [locError, setLocError] = useState(false);
+  const [mode, setMode] = useState<Mode>('walking');
+  const [query, setQuery] = useState('');
+  const [destination, setDestination] = useState<Place | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [selected, setSelected] = useState<Which>('safest');
+  const debounced = useDebounced(query.trim(), 350);
+  const pickedName = useStreetName(picking ? center : null);
+
+  useEffect(() => {
+    (async () => {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') return setLocError(true);
+      const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const here = { lat: p.coords.latitude, lng: p.coords.longitude };
+      setMe(here);
+      mapRef.current?.animateToRegion({ latitude: here.lat, longitude: here.lng, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 400);
+    })().catch(() => setLocError(true));
+  }, []);
+
+  const suggestions = useQuery({
+    queryKey: ['geocode', debounced, me && `${me.lat.toFixed(2)},${me.lng.toFixed(2)}`],
+    queryFn: () => {
+      const focus = me ? `&lat=${me.lat}&lng=${me.lng}` : '';
+      return api<{ places: Place[] }>(`/geocode?q=${encodeURIComponent(debounced)}${focus}`).then((r) => r.places);
+    },
+    enabled: debounced.length >= 2 && !destination && !picking,
+    staleTime: 5 * 60_000,
+  });
+
+  const plan = useMutation({
+    mutationFn: (args: { origin: { lat: number; lng: number }; destination: Place; mode: Mode }) =>
+      api<RoutePlan>('/routes/plan', {
+        method: 'POST',
+        body: { origin: args.origin, destination: { lat: args.destination.lat, lng: args.destination.lng }, mode: args.mode, localHour: new Date().getHours() },
+      }),
+    onSuccess: (p) => {
+      setSelected('safest');
+      const coords = [...p.fastest.coordinates, ...p.safest.coordinates].map((c) => ({ latitude: c.lat, longitude: c.lng }));
+      mapRef.current?.fitToCoordinates(coords, {
+        edgePadding: { top: insets.top + 190, right: 40, bottom: tabBarTop + 260, left: 40 },
+        animated: true,
+      });
+    },
+  });
+
+  // Re-plan when the destination or the travel mode changes.
+  useEffect(() => {
+    if (me && destination) plan.mutate({ origin: me, destination, mode });
+  }, [destination, mode, me?.lat, me?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function choose(place: Place) {
+    Keyboard.dismiss();
+    setDestination(place);
+    setQuery(place.label);
+  }
+
+  function clear() {
+    setDestination(null);
+    setQuery('');
+    plan.reset();
+  }
+
+  function startPicking() {
+    Keyboard.dismiss();
+    setDestination(null);
+    plan.reset();
+    setPicking(true);
+  }
+
+  function confirmPick() {
+    if (!center) return;
+    setPicking(false);
+    choose({ label: pickedName.name ?? 'Selected spot', lat: center.lat, lng: center.lng });
+  }
+
+  const p = plan.data;
+  const shown: PlannedRoute | null = p ? (selected === 'safest' ? p.safest : p.fastest) : null;
+  const routeColors = { safest: colors.accent, fastest: isDark ? '#60A5FA' : '#2563EB' };
+
+  return (
+    <View style={styles.fill}>
+      <MapView
+        ref={mapRef}
+        style={styles.fill}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        customMapStyle={Platform.OS === 'android' ? mapStyle : undefined}
+        userInterfaceStyle={isDark ? 'dark' : 'light'}
+        initialRegion={FALLBACK_REGION}
+        showsUserLocation
+        showsMyLocationButton={false}
+        toolbarEnabled={false}
+        pitchEnabled={false}
+        onRegionChangeComplete={(r: Region) => setCenter({ lat: r.latitude, lng: r.longitude })}
+      >
+        {p && !p.sameRoute ? (
+          <>
+            {/* The unselected route is drawn first (underneath) and faded. */}
+            <RouteLine route={selected === 'safest' ? p.fastest : p.safest} color={selected === 'safest' ? routeColors.fastest : routeColors.safest} dashed={selected === 'safest'} faded onPress={() => setSelected(selected === 'safest' ? 'fastest' : 'safest')} />
+            <RouteLine route={shown!} color={routeColors[selected]} dashed={selected === 'fastest'} />
+          </>
+        ) : p ? (
+          <RouteLine route={p.safest} color={routeColors.safest} />
+        ) : null}
+        {shown?.alerts.map((a) => <SmallPin key={a.id} lat={a.lat} lng={a.lng} category={a.category} />)}
+        {destination && !picking ? (
+          <Marker coordinate={{ latitude: destination.lat, longitude: destination.lng }} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
+            <Ionicons name="flag" size={30} color={colors.text} />
+          </Marker>
+        ) : null}
+      </MapView>
+
+      {picking ? (
+        <View pointerEvents="none" style={styles.crosshair}>
+          <Ionicons name="flag" size={34} color={colors.text} style={{ transform: [{ translateY: -16 }] }} />
+        </View>
+      ) : null}
+
+      {/* Top: where to + mode */}
+      <View style={[styles.top, { top: insets.top + space.sm }]} pointerEvents="box-none">
+        <Card style={{ gap: space.md, padding: space.md }}>
+          <View style={styles.row}>
+            <Ionicons name="radio-button-on" size={16} color={colors.accentText} />
+            <AppText variant="label" color="muted" style={{ flex: 1 }}>{locError ? 'Location is off: allow it to plan routes' : 'From your location'}</AppText>
+          </View>
+          <View style={[styles.searchBox, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+            <Ionicons name="search" size={18} color={colors.textMuted} />
+            <TextInput
+              value={query}
+              onChangeText={(t) => { setQuery(t); if (destination) { setDestination(null); plan.reset(); } }}
+              placeholder="Where to?"
+              placeholderTextColor={colors.textMuted}
+              maxFontSizeMultiplier={typeScale.body.maxScale}
+              style={[styles.searchInput, { color: colors.text, fontFamily: typeScale.body.fontFamily }]}
+              returnKeyType="search"
+              accessibilityLabel="Destination"
+            />
+            {query ? (
+              <Pressable onPress={clear} accessibilityRole="button" accessibilityLabel="Clear destination" hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Segmented<Mode>
+                accessibilityLabel="Travel mode"
+                value={mode}
+                onChange={setMode}
+                options={[{ value: 'walking', label: 'Walking' }, { value: 'driving', label: 'Driving' }]}
+              />
+            </View>
+            <Pressable onPress={startPicking} accessibilityRole="button" accessibilityLabel="Pick destination on the map" style={[styles.pickBtn, { borderColor: colors.border }]}>
+              <Ionicons name="locate" size={18} color={colors.text} />
+            </Pressable>
+          </View>
+        </Card>
+
+        {suggestions.data && suggestions.data.length > 0 && !destination && !picking && query.trim().length >= 2 ? (
+          <Card style={{ padding: 0, marginTop: space.sm, maxHeight: 260 }}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {suggestions.data.map((s, i) => (
+                <Pressable key={`${s.label}-${i}`} onPress={() => choose(s)} accessibilityRole="button" style={[styles.suggestion, { borderBottomColor: colors.border }]}>
+                  <Ionicons name="location-outline" size={18} color={colors.textMuted} />
+                  <AppText variant="body" numberOfLines={2} style={{ flex: 1 }}>{s.label}</AppText>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Card>
+        ) : null}
+        {suggestions.isError && !destination ? (
+          <Card style={{ marginTop: space.sm }}>
+            <AppText variant="caption" color="muted">{suggestions.error instanceof Error ? suggestions.error.message : 'Search failed.'} You can pick on the map instead.</AppText>
+          </Card>
+        ) : null}
       </View>
-      <View style={{ flex: 1 }}>
-        <AppText variant="bodyStrong">{title}</AppText>
-        <AppText variant="caption" color="muted">{body}</AppText>
+
+      {/* Bottom: pick confirmation, loading, error or the route comparison */}
+      <View style={[styles.bottom, { bottom: tabBarTop + size.fabLift + space.md }]} pointerEvents="box-none">
+        {picking ? (
+          <Card style={{ gap: space.md }}>
+            <AppText variant="label" color="muted">DRAG THE MAP TO PUT THE FLAG ON YOUR DESTINATION</AppText>
+            <AppText variant="h2" numberOfLines={2}>{pickedName.name ?? (pickedName.loading ? 'Finding street name…' : 'Unnamed road')}</AppText>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}><Button title="Cancel" variant="secondary" onPress={() => setPicking(false)} /></View>
+              <View style={{ flex: 1 }}><Button title="Go here" onPress={confirmPick} /></View>
+            </View>
+          </Card>
+        ) : plan.isPending ? (
+          <Card style={[styles.row, { justifyContent: 'center' }]}>
+            <ActivityIndicator color={colors.textMuted} />
+            <AppText variant="body" color="muted">Checking routes for reported dangers…</AppText>
+          </Card>
+        ) : plan.isError ? (
+          <Card style={{ gap: space.sm }}>
+            <AppText variant="bodyStrong">Couldn't plan a route</AppText>
+            <AppText variant="caption" color="muted">{plan.error instanceof Error ? plan.error.message : 'Try again.'}</AppText>
+            {me && destination ? <Button title="Try again" variant="secondary" onPress={() => plan.mutate({ origin: me, destination, mode })} /> : null}
+          </Card>
+        ) : p ? (
+          <Card style={{ gap: space.md }}>
+            <AppText variant="bodyStrong">{p.explanation}</AppText>
+            {p.sameRoute ? (
+              <RouteCard which="safest" title="Fastest & safest" route={p.safest} color={routeColors.safest} selected onPress={() => {}} />
+            ) : (
+              <View style={styles.row}>
+                <RouteCard which="safest" title="Safest" route={p.safest} color={routeColors.safest} selected={selected === 'safest'} onPress={() => setSelected('safest')} />
+                <RouteCard which="fastest" title="Fastest" route={p.fastest} color={routeColors.fastest} selected={selected === 'fastest'} onPress={() => setSelected('fastest')} />
+              </View>
+            )}
+            <AppText variant="caption" color="muted">Tap a route to see the alerts along it. Not turn-by-turn directions.</AppText>
+          </Card>
+        ) : !query ? (
+          <Card style={{ gap: space.xs }}>
+            <AppText variant="bodyStrong">Fastest vs. safest route</AppText>
+            <AppText variant="caption" color="muted">Search a destination or pick it on the map. We'll compare the quickest route with one that avoids reported danger.</AppText>
+          </Card>
+        ) : null}
       </View>
     </View>
   );
+}
 
+const RouteLine = memo(function RouteLine({ route, color, dashed, faded, onPress }: {
+  route: PlannedRoute; color: string; dashed?: boolean; faded?: boolean; onPress?: () => void;
+}) {
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + space.lg, paddingHorizontal: space.xl, paddingBottom: bottomSpace, gap: space.lg }}
+    <Polyline
+      coordinates={route.coordinates.map((c) => ({ latitude: c.lat, longitude: c.lng }))}
+      strokeColor={faded ? `${color}88` : color}
+      strokeWidth={faded ? 4 : 6}
+      lineDashPattern={dashed ? [12, 8] : undefined}
+      lineCap="round"
+      lineJoin="round"
+      zIndex={faded ? 1 : 2}
+      tappable={!!onPress}
+      onPress={onPress}
+    />
+  );
+});
+
+function SmallPin({ lat, lng, category }: { lat: number; lng: number; category: PlannedRoute['alerts'][number]['category'] }) {
+  const [track, setTrack] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setTrack(false), 600);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <Marker coordinate={{ latitude: lat, longitude: lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={track}>
+      <CategoryPin category={category} size={26} />
+    </Marker>
+  );
+}
+
+function RouteCard({ which, title, route, color, selected, onPress }: {
+  which: Which; title: string; route: PlannedRoute; color: string; selected: boolean; onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const badge = RISK_BADGE[route.riskLevel];
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${title} route: ${minutes(route.durationS)}, ${km(route.distanceM)}, ${badge.label}`}
+      style={[styles.routeCard, { borderColor: selected ? color : colors.border, backgroundColor: selected ? colors.cardAlt : colors.card }]}
     >
-      <AppText variant="display" accessibilityRole="header">Routes</AppText>
-      <Card style={{ gap: space.lg }}>
-        <Badge kind="pending" label="Coming soon" />
-        <AppText variant="h2">Fastest vs. Safest route</AppText>
-        <AppText variant="body" color="muted">
-          Pick where you're going and compare two routes: the quickest one, and the one that avoids reported
-          danger, especially useful late at night.
-        </AppText>
-        {row('walk', 'Walking or driving', 'Choose how you travel.')}
-        {row('shield-checkmark', 'Avoids red zones', 'Steers around unsafe areas, harassment reports and dark streets.')}
-        {row('time', 'Honest trade-off', 'e.g. "Avoids 2 unsafe areas · +4 min".')}
-      </Card>
-    </ScrollView>
+      <View style={styles.row}>
+        <View style={[styles.swatch, { backgroundColor: color }, which === 'fastest' && { opacity: 0.85 }]} />
+        <AppText variant="label" color="muted">{title.toUpperCase()}</AppText>
+      </View>
+      <AppText variant="stat">{minutes(route.durationS)}</AppText>
+      <AppText variant="caption" color="muted">{km(route.distanceM)} · {route.alerts.length} alert{route.alerts.length === 1 ? '' : 's'} nearby</AppText>
+      <Badge kind={badge.kind} label={badge.label} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
-  icon: { width: 36, height: 36, borderRadius: radius.input, alignItems: 'center', justifyContent: 'center' },
+  fill: { flex: 1 },
+  top: { position: 'absolute', left: space.lg, right: space.lg },
+  bottom: { position: 'absolute', left: space.lg, right: space.lg },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderWidth: 1, borderRadius: radius.input, paddingHorizontal: space.md, minHeight: 46 },
+  searchInput: { flex: 1, fontSize: 16, paddingVertical: space.sm },
+  pickBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  suggestion: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: StyleSheet.hairlineWidth },
+  crosshair: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  routeCard: { flex: 1, borderWidth: 2, borderRadius: radius.card, padding: space.md, gap: space.xs },
+  swatch: { width: 14, height: 4, borderRadius: 2 },
 });

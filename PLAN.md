@@ -9,7 +9,7 @@
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
 | 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
 | 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. **Real SMS deferred by the user**: the switch stays off (anyone signed in can report). To finish later: set up Twilio Verify (steps below), test, then set `REQUIRE_PHONE_VERIFICATION=true` |
-| 6. Fastest vs. Safest Route | Not started |
+| 6. Fastest vs. Safest Route | Code done (`003_routes.sql`, routing/risk/planner, `POST /routes/plan`, `/geocode`, Routes screen, Safe Route button); unit tests 52/52. Waiting for the user to run `003_routes.sql`, then the live route test |
 | 7. Deploy | Not started |
 | 8. Notifications (push + zone-entry alerts) | Not started |
 
@@ -326,6 +326,11 @@ Done before the phone app, so the app is built on the final rules and no data ne
 
 ## Phase 6: Fastest vs. Safest Route
 The user picks a destination and a mode (walking or driving). The app shows two routes: the **fastest**, and the **safest** (lowest risk from live alerts), compared in a bottom sheet, for example "Avoids 2 unsafe-area alerts and 1 poorly lit stretch; +4 mins".
+
+**Provider URL change (found while building):** OpenRouteService moved to HeiGIT's unified API. `api.openrouteservice.org` returns 410 since 2026-11-24.
+- Directions: `https://api.heigit.org/openrouteservice/v2/directions/<profile>/geojson`
+- Geocoding (Pelias): `https://api.heigit.org/pelias/v1/autocomplete` and `/reverse`
+- Same key and quotas; the key is sent in the `Authorization` header.
 
 **Providers (no billing card needed while testing):**
 - **Routing: OpenRouteService (ORS).** A free key with no card, about 2,000 route requests a day, real `foot-walking` and `driving-car` profiles, up to 3 alternatives, and `avoid_polygons`.

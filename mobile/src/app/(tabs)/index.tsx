@@ -134,13 +134,27 @@ export default function MapScreen() {
         <RoundButton icon="navigate" label="Go to my location" onPress={goToMe} />
       </View>
 
-      {/* Bottom-left is kept empty on purpose: reserved for the phase 6 "Safe Route" button. */}
+      {/* Bottom-left: Safe Route (phase 6) */}
+      <Pressable
+        onPress={() => router.navigate('/routes')}
+        accessibilityRole="button"
+        accessibilityLabel="Safe route"
+        accessibilityHint="Compare the fastest and the safest route to a destination"
+        style={({ pressed }) => [
+          styles.safeRoute,
+          { bottom: tabBarTop + size.fabLift + space.lg, backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
+          !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+        ]}
+      >
+        <Ionicons name="shield-checkmark" size={18} color={colors.accentText} />
+        <AppText variant="label">Safe Route</AppText>
+      </Pressable>
 
       {location.status === 'denied' ? (
         <Pressable
           onPress={refresh}
           accessibilityRole="button"
-          style={[styles.notice, { bottom: tabBarTop + size.fabLift + space.lg, backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.notice, { bottom: tabBarTop + size.fabLift + space.lg + 56, backgroundColor: colors.card, borderColor: colors.border }]}
         >
           <AppText variant="caption" color="muted">Location is off. Tap to allow it so the map can show alerts around you.</AppText>
         </Pressable>
@@ -269,9 +283,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  safeRoute: {
+    position: 'absolute',
+    left: space.lg,
+    minHeight: size.touch + 4,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: space.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+  },
   notice: {
     position: 'absolute',
-    left: space.lg + size.mapButton + space.md,
+    left: space.lg,
     right: space.lg,
     borderRadius: radius.input,
     borderWidth: 1,

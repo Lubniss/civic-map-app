@@ -89,6 +89,33 @@ export interface MyReport {
   fixCount: number;
 }
 
+export type RouteRiskLevel = 'Safe' | 'Moderate' | 'High';
+
+export interface PlannedRoute {
+  coordinates: { lat: number; lng: number }[];
+  distanceM: number;
+  durationS: number;
+  riskScore: number;
+  riskLevel: RouteRiskLevel;
+  alerts: { id: string; category: Category; status: AlertStatus; hot: boolean; lat: number; lng: number }[];
+}
+
+/** POST /routes/plan */
+export interface RoutePlan {
+  mode: 'walking' | 'driving';
+  fastest: PlannedRoute;
+  safest: PlannedRoute;
+  sameRoute: boolean;
+  explanation: string;
+  candidates: number;
+}
+
+export interface Place {
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Bbox {
   minLng: number;
   minLat: number;
