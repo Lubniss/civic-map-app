@@ -20,4 +20,10 @@ The build plan and current status are in [PLAN.md](PLAN.md).
 ## Setup
 1. Create a Supabase project (steps in PLAN.md, phase 0).
 2. Copy `server/.env.example` to `server/.env` and `mobile/.env.example` to `mobile/.env`, then fill in the keys.
-3. Further steps are added as each phase is built.
+3. **Database:** in Supabase, open **SQL Editor → New query**, paste all of `supabase/migrations/001_init.sql` and click **Run** (once only).
+4. **Test the database** from this folder:
+   ```
+   node --env-file=server/.env --env-file=mobile/.env supabase/tests/db-test.mjs
+   ```
+   It uses 4 throwaway users at 0.5°N 0.5°E (in the ocean), checks every rule, then deletes them.
+5. Further steps are added as each phase is built.
