@@ -1,6 +1,6 @@
-import { memo, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
-import { Circle, Heatmap, Marker } from 'react-native-maps';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { Circle, Marker } from 'react-native-maps';
+import { buildHeatClouds } from '@/lib/heatClouds';
 import type { HeatPoint, MapAlert } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
 import { CategoryPin } from './CategoryIcon';
@@ -52,33 +52,28 @@ export const AlertMarker = memo(function AlertMarker({ alert, onPress }: { alert
 });
 
 /**
- * Heatmap. Android (Google Maps) uses the real heatmap; iPhone in Expo Go uses Apple Maps,
- * which has no heatmap, so it falls back to soft overlapping circles.
+ * Heatmap as wide, soft "heat clouds" (same on Android and iPhone): nearby points are grouped into
+ * hotspots, each drawn as 4 strokeless concentric circles sized in metres (~320 → 65 m, scaled by
+ * severity) with a warm yellow → red gradient at 8–22% opacity, so overlaps blend and names stay readable.
  */
-export function HeatLayer({ points }: { points: HeatPoint[] }) {
-  const { zones } = useTheme();
-  if (Platform.OS === 'android') {
-    if (!points.length) return null;
-    return (
-      <Heatmap
-        points={points.map((p) => ({ latitude: p.lat, longitude: p.lng, weight: p.weight }))}
-        radius={40}
-        opacity={0.75}
-        gradient={{ colors: ['#86EFAC', '#FACC15', '#F97316', '#DC2626'], startPoints: [0.1, 0.4, 0.7, 1], colorMapSize: 256 }}
-      />
-    );
-  }
+export const HeatLayer = memo(function HeatLayer({ points }: { points: HeatPoint[] }) {
+  const { isDark } = useTheme();
+  const clouds = useMemo(() => buildHeatClouds(points, isDark), [points, isDark]);
   return (
     <>
-      {points.slice(0, 400).map((p, i) => (
-        <Circle
-          key={`${p.lat},${p.lng},${i}`}
-          center={{ latitude: p.lat, longitude: p.lng }}
-          radius={60 + p.weight * 60}
-          strokeWidth={0}
-          fillColor={zones.redFill}
-        />
-      ))}
+      {clouds.map((c) =>
+        c.rings.map((ring, i) => (
+          <Circle
+            key={`${c.key}-${i}-${isDark ? 'd' : 'l'}`}
+            center={{ latitude: c.lat, longitude: c.lng }}
+            radius={ring.radius}
+            strokeWidth={0}
+            strokeColor="transparent"
+            fillColor={ring.fill}
+            zIndex={i}
+          />
+        )),
+      )}
     </>
   );
-}
+});

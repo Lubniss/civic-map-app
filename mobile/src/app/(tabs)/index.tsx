@@ -136,12 +136,6 @@ export default function MapScreen() {
 
       {/* Bottom-left is kept empty on purpose: reserved for the phase 6 "Safe Route" button. */}
 
-      {mode === 'heat' && Platform.OS === 'ios' ? (
-        <View style={[styles.notice, { bottom: tabBarTop + size.fabLift + space.lg, backgroundColor: colors.card, borderColor: colors.border }]}>
-          <AppText variant="caption" color="muted">Simplified heatmap on iPhone (full heatmap in the app build)</AppText>
-        </View>
-      ) : null}
-
       {location.status === 'denied' ? (
         <Pressable
           onPress={refresh}
