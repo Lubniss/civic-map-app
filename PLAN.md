@@ -1,4 +1,4 @@
-# Civic Map Alerting: the real mobile app
+﻿# Civic Map Alerting: the real mobile app
 
 ## Status
 | Phase | State |
@@ -7,9 +7,9 @@
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
-| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
+| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category â†’ now/recent â†’ Call 112 â†’ crosshair pin with 300 m check and street name â†’ details with camera photo â†’ result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
 | 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. **Real SMS deferred by the user**: the switch stays off (anyone signed in can report). To finish later: set up Twilio Verify (steps below), test, then set `REQUIRE_PHONE_VERIFICATION=true` |
-| 6. Fastest vs. Safest Route | Code done (`003_routes.sql`, routing/risk/planner, `POST /routes/plan`, `/geocode`, Routes screen, Safe Route button); unit tests 52/52. Waiting for the user to run `003_routes.sql`, then the live route test |
+| 6. Fastest vs. Safest Route | Done: `003_routes.sql` applied; unit tests 52/52; live route test 11/11 (3 red zones on the fastest route, the safest avoids 2: risk 135 -> 24.5, +1 min). Needs a check on the phones |
 | 7. Deploy | Not started |
 | 8. Notifications (push + zone-entry alerts) | Not started |
 
@@ -41,9 +41,9 @@ The environment has Node 26 and npm 11. There's no Android SDK and no Docker, so
 
 **Grouping and visibility**
 - Reports of the same category within 300 m join one alert.
-- **Normal categories:** 1–2 different reporters = `pending` (no pin, adds heat only). 3 different reporters = `verified` (pin).
+- **Normal categories:** 1â€“2 different reporters = `pending` (no pin, adds heat only). 3 different reporters = `verified` (pin).
 - **Emergency categories:**
-  - 1–2 reporters = `red_zone`, shown at once. It expires after the latest report: **48 h** for Unsafe and Harassment, **6 h** for Fire and Accident. Each new report restarts the clock.
+  - 1â€“2 reporters = `red_zone`, shown at once. It expires after the latest report: **48 h** for Unsafe and Harassment, **6 h** for Fire and Accident. Each new report restarts the clock.
   - 3 different reporters = **permanent `grey_zone`**. It shows **red while recent** (same 48 h or 6 h after the latest report) and **grey afterwards**, as "incidents happened here".
 - **Resolving:** 3 different people, not counting the first reporter, confirm with a photo. For grey zones the app asks for the right proof: CCTV or new lighting installed (Unsafe, Harassment), road cleared (Accident), site made safe (Fire).
 - The area summary always mentions active red zones, even with a single report.
@@ -93,11 +93,11 @@ civic-map-app/
 ## Data model (`001_init.sql`, done)
 - `profiles`: id (= auth user), display_name, push_token, last_location, created_at.
 - `alerts`: id, category, location (center of its reports), status, reporter_count, report_count, avg_severity, fix_count, first_reporter_id, expires_at, created_at, updated_at, verified_at, resolved_at.
-- `reports`: id, alert_id, user_id, category, severity (1–3), note, photo_path, location, created_at.
+- `reports`: id, alert_id, user_id, category, severity (1â€“3), note, photo_path, location, created_at.
 - `fix_confirmations`: id, alert_id, user_id, photo_path, note, created_at; one per person per alert.
 - Functions: `submit_report`, `confirm_fix`, `alerts_in_bbox`, `report_points_in_bbox`. Only the server (service_role) can call them.
 - Row-level security is on for every table with no policies, so the app can't read or write tables directly.
-- A private `photos` bucket (5 MB, images): users upload only to `<user_id>/…`.
+- A private `photos` bucket (5 MB, images): users upload only to `<user_id>/â€¦`.
 
 ## Server (done in phase 2)
 Routes: `GET /health`, `GET /alerts?bbox=`, `GET /alerts/:id`, `POST /reports`, `POST /alerts/:id/confirm-fix`, `GET /heatmap?bbox=`, `GET /summary?bbox=` or `?lat&lng&radius=`. The details are in README.md.
@@ -113,7 +113,7 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - `reports` gain `timing` (`now` / `recent`, emergencies only), `reporter_lat`, `reporter_lng`, `gps_accuracy_m` and `location_at` (when the GPS reading was taken). `photo_path` becomes optional for emergency categories.
 - `fix_confirmations` gain the same reporter location fields.
 - `submit_report` changes:
-  - Emergency categories with 1–2 reporters become `red_zone`, with `expires_at` 48 h or 6 h ahead.
+  - Emergency categories with 1â€“2 reporters become `red_zone`, with `expires_at` 48 h or 6 h ahead.
   - With 3+ reporters they become `grey_zone`, with `hot_until` 48 h or 6 h after the latest report.
   - Normal categories stay `pending` or `verified`.
 - `alerts_in_bbox` also returns grey zones, with a `hot` flag, so the app knows whether to draw red or grey.
@@ -127,7 +127,7 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - The summary treats hot grey zones like red zones (always mentioned).
 - Messages explain each refusal, for example "You need to be within 300 m of the problem to report it".
 
-**Tests:** extend `db-test.mjs`, the unit tests and `smoke.mjs` to cover Fire and Accident, the 6 h and 48 h expiry, red → grey zone, hot → grey, the 300 m rule (inside, outside, accuracy allowance), the recent-report window, optional emergency photos and stale photos.
+**Tests:** extend `db-test.mjs`, the unit tests and `smoke.mjs` to cover Fire and Accident, the 6 h and 48 h expiry, red â†’ grey zone, hot â†’ grey, the 300 m rule (inside, outside, accuracy allowance), the recent-report window, optional emergency photos and stale photos.
 
 ## Phase 4: Mobile core app (Expo)
 **Libraries:** `expo-router`, `react-native-maps`, `expo-location`, `expo-image-picker` (camera only) or `expo-camera`, `expo-image-manipulator`, `@supabase/supabase-js`, `@react-native-async-storage/async-storage`, `react-native-url-polyfill`, `@tanstack/react-query`, `react-native-safe-area-context`, `expo-font` with `@expo-google-fonts/poppins` and `@expo-google-fonts/inter`. Everything runs in Expo Go.
@@ -142,10 +142,10 @@ Done before the phone app, so the app is built on the final rules and no data ne
 **Theme (`mobile/src/theme.ts`, shared by every screen):**
 - Light and dark palettes with the same token names: `bg`, `card`, `text`, `textMuted`, `border`, `accent`, `accentText`, `danger`, `grey`, `warning`, plus a colour per category. Every component takes colours from the theme only.
 - **Accent: fresh green** like image 1 (safety, "all clear"), with a dark teal for the tab bar. **Red is reserved for danger** (red zones, SOS, High risk); grey for grey zones; amber for Moderate.
-- **Profile → Appearance:** System (default), Light or Dark, saved on the phone.
+- **Profile â†’ Appearance:** System (default), Light or Dark, saved on the phone.
 - **Map styles:** matching light and dark map styles (`customMapStyle`) on Android with Google Maps. On iPhone in Expo Go, Apple Maps follows the light or dark choice through `userInterfaceStyle`.
 
-**Approved theme tokens** (contrast measured with WCAG formulas; all text ≥ 4.5:1, icons and shapes ≥ 3:1):
+**Approved theme tokens** (contrast measured with WCAG formulas; all text â‰¥ 4.5:1, icons and shapes â‰¥ 3:1):
 
 *Base palette (light / dark):*
 - bg `#F6F8F7` / `#0A1514`
@@ -160,15 +160,15 @@ Done before the phone app, so the app is built on the final rules and no data ne
 
 *Dark-mode tint:* dark cards, sheets and the dark map share one teal-slate tint (map land `#1A2725`, roads `#283735`, labels `#8FA5A0`). Sheets over the map stand apart by their 1 px border and drag handle, not a colour clash.
 
-*Badges* (text / background, light → dark):
+*Badges* (text / background, light â†’ dark):
 - Red zone: white on `#DC2626` (both)
-- Grey zone: `#374151`/`#E5E7EB` → `#D1D5DB`/`#262B33`
-- **Verified: slate-blue** `#2B4A6B`/`#E3EBF4` → `#A9C3DE`/`#182633` (never green on danger alerts)
-- Pending: stone `#57534E`/`#EEECE8` → `#D6D3D1`/`#26302E`
-- **Fixed: green** `#166534`/`#DCFCE7` → `#4ADE80`/`#0F2A1C`
+- Grey zone: `#374151`/`#E5E7EB` â†’ `#D1D5DB`/`#262B33`
+- **Verified: slate-blue** `#2B4A6B`/`#E3EBF4` â†’ `#A9C3DE`/`#182633` (never green on danger alerts)
+- Pending: stone `#57534E`/`#EEECE8` â†’ `#D6D3D1`/`#26302E`
+- **Fixed: green** `#166534`/`#DCFCE7` â†’ `#4ADE80`/`#0F2A1C`
 - Risk Low (Safe): green, same as Fixed
-- Risk Moderate: `#92400E`/`#FEF3C7` → `#FBBF24`/`#33270A`
-- Risk High: `#991B1B`/`#FEE2E2` → `#FCA5A5`/`#3B1414`
+- Risk Moderate: `#92400E`/`#FEF3C7` â†’ `#FBBF24`/`#33270A`
+- Risk High: `#991B1B`/`#FEE2E2` â†’ `#FCA5A5`/`#3B1414`
 - Green is used only for Safe, Fixed and primary actions.
 
 *Zone circles:*
@@ -200,8 +200,8 @@ Done before the phone app, so the app is built on the final rules and no data ne
     - local roads `#2D3A46`, arterials `#3A4A5A`, warm amber highways `#8A6A2E`
     - category-coloured place names: amber for food and business, teal for schools, violet for government and worship, coral for medical, blue for transit
     - Google's place icons left on
-  - The earlier muted style (−15–20%) was dropped because roads blended into the land.
-- **Tab bar:** a symmetric 2–1–2 layout with the **+** exactly centred: **Map · Routes · (+) · My Reports · Profile**. "Routes" is a placeholder until phase 6.
+  - The earlier muted style (âˆ’15â€“20%) was dropped because roads blended into the land.
+- **Tab bar:** a symmetric 2â€“1â€“2 layout with the **+** exactly centred: **Map Â· Routes Â· (+) Â· My Reports Â· Profile**. "Routes" is a placeholder until phase 6.
 
 - **Place ground tints:** each place's ground matches its icon colour, using `geometry.fill` only, with icons and labels untouched. Pastel in light mode, deep and subtle in dark mode:
   - schools indigo, medical blush, business peach
@@ -212,14 +212,14 @@ Done before the phone app, so the app is built on the final rules and no data ne
 *Dropped by the user: zoomed-in OpenStreetMap place icons. Google's native coloured icons are enough. The proposal is kept below for reference.*
 - **Data:** OpenStreetMap through our server. A new `GET /places?bbox=` route fetches ~1 km tiles from the free Overpass service, at most 1 request a second.
 - **Cache:** a new `places_cache` table (migration `003_places_cache.sql`; Safe Route's SQL moves to `004`), kept 7 days.
-- **Place types:** bus/train stops, cafés/restaurants, colleges/schools, parks, hospitals/clinics, police and fire stations.
+- **Place types:** bus/train stops, cafÃ©s/restaurants, colleges/schools, parks, hospitals/clinics, police and fire stations.
 - **In the app:**
   - only when zoomed in closer than street level (map width under ~1.2 km)
   - at most 30 icons, nearest first, with `tracksViewChanges={false}`
   - 24 px two-tone rounded-square icons drawn under the alert pins
   - names only at the closest zoom
   - Apple's built-in place icons hidden on iPhone (`showsPointsOfInterests={false}`)
-  - a "© OpenStreetMap contributors" note while place icons are shown
+  - a "Â© OpenStreetMap contributors" note while place icons are shown
 - **Artwork:** icons in the reference's style, drawn with our MIT-licensed icon set (Streamline's icons are paid, so they aren't copied).
 
 *Pin rings:* a 2 px ring on every pin, **white in light mode and `#E8F0ED` in dark mode** (less glare at night), plus a soft shadow in light mode.
@@ -249,7 +249,7 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - **What's drawn on the map:**
   - Pins only for verified alerts, as category-coloured pins in the image 1 style.
   - Red zones and hot grey zones: a red 150 m circle. Cooled grey zones: a grey circle labelled "Incidents reported here".
-  - Unverified red zones show "Reported by 1 person · expires in 31 h".
+  - Unverified red zones show "Reported by 1 person Â· expires in 31 h".
 - **Zone warning banner (preview):**
   - While the app is open, it watches the user's location. When they walk into a red zone, grey zone, unhealthy area or (at night) a poorly lit street, a banner slides in under the summary pill, for example "Heads up: Harassment reported here 2 h ago".
   - At most once per zone every 6 hours. It's remembered on the phone only.
@@ -264,13 +264,13 @@ Done before the phone app, so the app is built on the final rules and no data ne
 5. The app checks the 300 m rule before sending (current GPS, or for "recent" the 1-hour location history). After sending it shows the server's message, for example "A pin appears once 3 people report this (1 of 3)".
 
 **Alert detail** (bottom sheet, image 1 style):
-- A photo carousel at the top, then the category, status chip, **street name** (never raw coordinates), and "Reported by 3 people · 2 h ago".
+- A photo carousel at the top, then the category, status chip, **street name** (never raw coordinates), and "Reported by 3 people Â· 2 h ago".
 - The area summary for 300 m around the alert, every report with its photo, and fix progress (1/3).
 - A "Confirm it's fixed" button with the proof checklist for grey zones, a camera photo and the 300 m check.
-- **Share button:** the phone's native share sheet (`Share.share`) with text like "⚠️ Harassment reported near Raisina Road · Civic Map", plus a Google Maps link to the spot (`https://maps.google.com/?q=lat,lng`). It contains no personal information. A link that opens the alert inside our app comes later, with the development build.
+- **Share button:** the phone's native share sheet (`Share.share`) with text like "âš ï¸ Harassment reported near Raisina Road Â· Civic Map", plus a Google Maps link to the spot (`https://maps.google.com/?q=lat,lng`). It contains no personal information. A link that opens the alert inside our app comes later, with the development build.
 
 **My Reports (tab):**
-- A list of cards (image 2 "Recent Activities" style): category icon, street name, date and status. Statuses include "Waiting for 2 more reports", "Red zone · 31 h left", "On the map", "Grey zone", "Fixed".
+- A list of cards (image 2 "Recent Activities" style): category icon, street name, date and status. Statuses include "Waiting for 2 more reports", "Red zone Â· 31 h left", "On the map", "Grey zone", "Fixed".
 - Tapping a card opens the alert. A pending one shows only the user's own report.
 - **Server addition:** `GET /me/reports` returns the signed-in user's reports with their alert status, newest first, 20 per page. It's the only route that shows pending alerts, and only your own.
 
@@ -303,23 +303,23 @@ Done before the phone app, so the app is built on the final rules and no data ne
 
 ## Phase 5: Phone SMS check
 **As built:**
-- **App:** Profile → "Verify phone" opens a screen: number (with a +91 default) → SMS code, using `supabase.auth.updateUser({ phone })` then `verifyOtp({ type: 'phone_change' })`.
+- **App:** Profile â†’ "Verify phone" opens a screen: number (with a +91 default) â†’ SMS code, using `supabase.auth.updateUser({ phone })` then `verifyOtp({ type: 'phone_change' })`.
 - **Gates:** the report flow shows a "Verify your phone to report" card when the server needs it, and Confirm it's fixed shows a "Verify phone" button if the server answers `PHONE_REQUIRED`.
 - **Server:** `REQUIRE_PHONE_VERIFICATION=true` in `server/.env` makes `POST /reports` and `POST /alerts/:id/confirm-fix` return 403 `PHONE_REQUIRED` for accounts without a confirmed phone. `/health` reports `requirePhone` so the app knows.
 - **The switch stays off until Twilio is set up and tested.**
 
 **User setup steps:**
 1. Sign up at https://www.twilio.com/try-twilio and verify your own email and phone.
-2. In Twilio, go to **Verify → Services → Create new**, name it `Civic Map`, and copy the **Service SID** (starts with `VA`).
+2. In Twilio, go to **Verify â†’ Services â†’ Create new**, name it `Civic Map`, and copy the **Service SID** (starts with `VA`).
 3. From the Twilio console home, copy the **Account SID** (starts with `AC`) and the **Auth Token**.
-4. In Supabase, go to **Authentication → Sign In / Providers → Phone**, turn on **Enable Phone provider**, set the SMS provider to **Twilio Verify**, and paste the Account SID, Auth Token and Verify Service SID. Save. (You type these yourself; never share them.)
+4. In Supabase, go to **Authentication â†’ Sign In / Providers â†’ Phone**, turn on **Enable Phone provider**, set the SMS provider to **Twilio Verify**, and paste the Account SID, Auth Token and Verify Service SID. Save. (You type these yourself; never share them.)
 5. On a Twilio **trial**, SMS only reaches numbers added under **Verified Caller IDs**. Add your test phones there, or upgrade the account.
-6. Test in the app: Profile → Verify phone → enter the number → type the SMS code → "Phone verified".
+6. Test in the app: Profile â†’ Verify phone â†’ enter the number â†’ type the SMS code â†’ "Phone verified".
 7. Then set `REQUIRE_PHONE_VERIFICATION=true` in `server/.env` and restart the server.
 
 **Original plan:**
 - **Provider: Twilio Verify** through Supabase's phone sign-in settings. Twilio handles India's DLT SMS rules, so we don't need our own sender registration.
-  - Cost is roughly ₹4–6 per verification. The user creates the Twilio account.
+  - Cost is roughly â‚¹4â€“6 per verification. The user creates the Twilio account.
 - **Flow:** after email sign-in, the app asks for a phone number once. It sends an SMS code, confirms it, and the phone is saved on the account. Supabase allows each phone number on only one account.
 - **Server:** `POST /reports` and `POST /alerts/:id/confirm-fix` refuse users without a confirmed phone ("Verify your phone number to report"). Viewing the map doesn't need it.
 - **Tests:** a smoke test with unverified and verified test users.
@@ -350,11 +350,11 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - **Fallback:** if the "avoid hazards" request fails or returns no route, the server quietly continues with the normal alternative routes. A broken avoid-route never breaks route planning, and the server logs the failure.
 
 **Risk scoring (`server/src/risk.ts`, a pure function with tests):**
-- Points per alert = category weight × avg_severity × status × closeness × night boost.
+- Points per alert = category weight Ã— avg_severity Ã— status Ã— closeness Ã— night boost.
 - Category weights: unsafe 10, harassment 10, fire 10, accident 6, streetlight 6, road 2, water 1.5, garbage 1, other 1.
 - Status: verified 1.0, red zone 1.0, hot grey zone 1.0, cooled grey zone 0.5.
 - Closeness: 1.0 at the route, falling to 0.5 at 150 m.
-- Night boost: ×1.5 for unsafe, harassment and streetlight between 8 PM and 5 AM, using the phone's local time.
+- Night boost: Ã—1.5 for unsafe, harassment and streetlight between 8 PM and 5 AM, using the phone's local time.
 - Risk level: Safe under 5, Moderate Risk under 15, High Risk at 15 or more.
 
 **Route selection (`server/src/routePlanner.ts`, tested):**
@@ -373,7 +373,7 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - A "Safe Route" button opens a destination picker (search, tap-on-map, start point, Walking / Driving).
 - Routes are drawn with `<Polyline>` (works in Expo Go on both phones): Safest as solid green, Fastest as dashed blue/grey.
 - Tapping a route highlights it and shows the alerts along it.
-- The comparison sheet shows ETA, distance, a risk badge and the "avoids…" explanation.
+- The comparison sheet shows ETA, distance, a risk badge and the "avoidsâ€¦" explanation.
 - It picks between routes but doesn't give turn-by-turn directions.
 
 ## Phase 7: Deploy
@@ -402,7 +402,7 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - Other languages (Hindi etc.). Dark mode and My Reports moved into phase 4.
 
 ## Verification
-- **Database:** `node --env-file=server/.env --env-file=mobile/.env supabase/tests/db-test.mjs` checks every grouping, red, grey, fix and security rule with throwaway users in the ocean at 0.5°N 0.5°E, then deletes them.
+- **Database:** `node --env-file=server/.env --env-file=mobile/.env supabase/tests/db-test.mjs` checks every grouping, red, grey, fix and security rule with throwaway users in the ocean at 0.5Â°N 0.5Â°E, then deletes them.
 - **Server:**
   - `npm test` runs the unit tests (summary sentences, validation, error mapping, and later risk and route selection).
   - `npm run smoke` calls every endpoint of a running server with real logins and photo uploads.
