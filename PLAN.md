@@ -11,7 +11,7 @@
 | 5. Phone SMS check | Not started |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
-| 8. Push alerts | Not started |
+| 8. Notifications (push + zone-entry alerts) | Not started |
 
 ## Context
 The video prototype (one HTML file, live at lubniss.github.io/civic-map-alerting) proved the idea. Now we build the real app using the stack the user chose:
@@ -64,9 +64,20 @@ The environment has Node 26 and npm 11. There's no Android SDK and no Docker, so
 - The app states: "In an emergency, call 112 first. Reports are not sent to 112."
 - The number is 112 only (India / EU).
 
+**Zone-entry alerts ("you're entering a dangerous or unhealthy area")**
+- They trigger on:
+  - red zones (active emergencies)
+  - grey zones (worded more softly: "incidents were reported here")
+  - unhealthy areas (verified Garbage and Water / Drainage alerts)
+  - poorly lit streets (verified Streetlight-out alerts), only between 8 PM and 5 AM
+- The same zone notifies at most **once every 6 hours**.
+- Checked **on the phone** (geofencing). The user's location is never sent to the server for this.
+- **Phase 4:** an in-app warning banner while the app is open (works in Expo Go).
+- **Phase 8:** real notifications even when the app is closed (development build, "Allow all the time" location).
+
 **Other**
 - Keep the heatmap and the one-line area summaries from the prototype.
-- Push alerts come last, because they need a development build.
+- Push notifications come last, because they need a development build.
 
 ## Repo layout
 ```
@@ -141,6 +152,9 @@ Done before the phone app, so the app is built on the final rules and no data ne
   - A "Confirm it's fixed" button with the proof checklist for grey zones, a camera photo and the 300 m check.
 - **Profile:** email and sign out.
 - The "In an emergency, call 112 first" notice appears on the SOS screen and the report flow.
+- **Zone warning banner (preview):**
+  - While the app is open, it watches the user's location. When they walk into a red zone, grey zone, unhealthy area or (at night) a poorly lit street, a banner slides in, for example "Heads up: Harassment reported here 2 h ago" or "Heavy waste reported in this area".
+  - At most once per zone every 6 hours. It's remembered on the phone only.
 
 **Heatmap:** react-native-maps' `<Heatmap>` works only with Google Maps.
 - Android in Expo Go: works with no API key.
@@ -204,10 +218,18 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - Put the server on Render with `render.yaml`, building from GitHub. The secret key goes only into Render's environment settings.
 - Point the app at the Render URL.
 
-## Phase 8: Push alerts
-- Development build through EAS (free Expo account), with a Google Maps API key for the build. This also gives the real heatmap on iPhone.
-- `expo-notifications` registers push tokens, and the server keeps each user's last location up to date (`PUT /me/push-token`, `PUT /me/location`).
-- When a high-severity emergency alert appears, the server notifies users within 2 km using `expo-server-sdk`.
+## Phase 8: Notifications (push + zone-entry alerts)
+- **Development build** through EAS (free Expo account), with a Google Maps API key for the build. This also gives the real heatmap on iPhone.
+- **New-alert push:**
+  - `expo-notifications` registers push tokens, and the server keeps each user's last location up to date (`PUT /me/push-token`, `PUT /me/location`).
+  - When a high-severity emergency alert appears, the server notifies users within 2 km using `expo-server-sdk`.
+- **Zone-entry alerts (geofencing, on the phone):**
+  - `expo-location` geofencing with `expo-task-manager` and local notifications.
+  - The app downloads the nearest zones and registers them as geofences: up to 20 on iPhone and 100 on Android, nearest first. It refreshes them as the user moves (on app open and on significant location change).
+  - Triggers and the 6-hour limit per zone are the same as the Phase 4 banner. Streetlight zones only alert between 8 PM and 5 AM.
+  - Needs "Allow location all the time". The app explains why first, and the feature is optional; without it, only the in-app banner works.
+  - Google Play needs a background-location declaration and a short demo video, using this safety feature as the reason.
+- **Notification settings** in Profile: turn each type on or off (new alerts nearby, red zones, grey zones, unhealthy areas, dark streets), plus quiet hours.
 - Possible extra: detect mock-location apps on Android.
 
 ## Parked ideas (not scheduled)
@@ -232,6 +254,8 @@ The user picks a destination and a mode (walking or driving). The app shows two 
   - Have 3 people report the same emergency: it stays red, then turns grey later.
   - Confirm a fix from 3 other accounts at the spot: the alert disappears as resolved.
   - Check that the heatmap and summary sentences match the prototype's behavior.
+  - Walk into a red zone with the app open: the warning banner shows once, and not again within 6 hours.
+- **Notifications (phase 8):** with the app closed, walk into a red zone, an unhealthy area and (at night) a dark street. Each notifies once. A new high-severity alert within 2 km sends a push.
 - **Routes:**
   - Unit tests cover weights, the night boost, the tie-break, `sameRoute` and the explanation.
   - Smoke test: seeded alerts on the fastest route are avoided by the safest.
