@@ -3,7 +3,7 @@
 ## Status
 | Phase | State |
 |---|---|
-| 0. Setup | In progress: repo created, waiting for Supabase keys |
+| 0. Setup | Done: repo, Supabase project (Gmail SMTP, OTP templates, PostGIS in `extensions` schema), .env files filled |
 | 1. Database | Not started |
 | 2. Server | Not started |
 | 3. Mobile | Not started |
