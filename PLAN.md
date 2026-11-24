@@ -7,7 +7,7 @@
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Not started |
-| 4. Mobile core app | Not started (waiting for the user's look & design ideas) |
+| 4. Mobile core app | Not started (design agreed: see "Look & design" and the Phase 4 checklist) |
 | 5. Phone SMS check | Not started |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
@@ -130,39 +130,94 @@ Done before the phone app, so the app is built on the final rules and no data ne
 **Tests:** extend `db-test.mjs`, the unit tests and `smoke.mjs` to cover Fire and Accident, the 6 h and 48 h expiry, red → grey zone, hot → grey, the 300 m rule (inside, outside, accuracy allowance), the recent-report window, optional emergency photos and stale photos.
 
 ## Phase 4: Mobile core app (Expo)
-**Libraries:** `react-native-maps`, `expo-location`, `expo-camera` or `expo-image-picker` (camera only), `expo-image-manipulator`, `@supabase/supabase-js`, `@react-native-async-storage/async-storage`, `react-native-url-polyfill`, `@tanstack/react-query`.
+**Libraries:** `expo-router`, `react-native-maps`, `expo-location`, `expo-image-picker` (camera only) or `expo-camera`, `expo-image-manipulator`, `@supabase/supabase-js`, `@react-native-async-storage/async-storage`, `react-native-url-polyfill`, `@tanstack/react-query`, `react-native-safe-area-context`, `expo-font` with `@expo-google-fonts/poppins` and `@expo-google-fonts/inter`. Everything runs in Expo Go.
 
-**Screens:**
-- **Sign in:** email, then the 6-digit code.
-- **Map (home):**
-  - Starts at the user's GPS location, with an Alerts / Heatmap toggle and an always-visible **SOS / 112** button.
-  - Pins only for verified alerts, colored by category.
+### Look & design
+**References:**
+- **Image 1 (green map app):** map layout, floating search-style pill at the top, floating rounded bottom tab bar with a raised centre button, white bottom sheets with a drag handle, big full-width green action buttons.
+- **Image 2 (light fitness cards):** card styling, spacing and typography. Soft off-white background, white rounded cards (radius ~20), very light shadows, large bold headings, small grey labels, pill-shaped chips and segmented tabs.
+- **Prototype screenshots:** keep the content of the Area Summary sheet (headline sentence, risk / report-count / severity pills, "Most reported" box, breakdown bars, latest reports). Restyle it in the new look.
+- **Plain React Native styles only:** no blur or glassmorphism, just solid colours, simple shadows (`elevation` on Android) and rounded corners, so it stays smooth in Expo Go.
+
+**Theme (`mobile/src/theme.ts`, shared by every screen):**
+- Light and dark palettes with the same token names: `bg`, `card`, `text`, `textMuted`, `border`, `accent`, `accentText`, `danger`, `grey`, `warning`, plus a colour per category. Every component takes colours from the theme only.
+- **Accent: fresh green** like image 1 (safety, "all clear"), with a dark teal for the tab bar. **Red is reserved for danger** (red zones, SOS, High risk); grey for grey zones; amber for Moderate.
+- **Profile → Appearance:** System (default), Light or Dark, saved on the phone.
+- **Map styles:** matching light and dark map styles (`customMapStyle`) on Android with Google Maps. On iPhone in Expo Go, Apple Maps follows the light or dark choice through `userInterfaceStyle`.
+
+**Typography and layout:**
+- One locked font pairing loaded with `expo-font`: **Poppins** for headings and numbers (as in image 2), **Inter** for body text. Text never falls back to random system fonts.
+- Text respects the phone's accessibility size up to a cap (`maxFontSizeMultiplier` ~1.3), so large system font settings can't push buttons off screen.
+- All screens use safe-area insets (`react-native-safe-area-context`), so nothing sits under the notch, the status bar or the home bar.
+- A fixed spacing scale (4 / 8 / 12 / 16 / 24 / 32) and minimum 44 px touch targets. Floating buttons have reserved positions so they never overlap.
+
+### Screens
+**Navigation:** a floating rounded bottom tab bar (image 1) with **Map**, **My Reports** and **Profile**, plus a raised round **"+"** centre button that starts a report.
+
+**Sign in:**
+- A clean card with the app name: enter your email, then the 6-digit code.
+
+**Map (home):**
+- **Top, always visible:** a floating **Area Summary pill** showing the risk badge (Low / Moderate / High) and the one-line headline, for example "A dirty area with safety concerns". It updates as the map moves. Tapping it opens the full Area Summary bottom sheet.
+- **Right side (reserved column, top to bottom):**
+  - red **SOS / 112** button
+  - Alerts / Heatmap toggle
+  - "my location" button
+- **Bottom-left: reserved empty slot for the phase 6 "Safe Route" button**, so nothing has to move later.
+- **What's drawn on the map:**
+  - Pins only for verified alerts, as category-coloured pins in the image 1 style.
   - Red zones and hot grey zones: a red 150 m circle. Cooled grey zones: a grey circle labelled "Incidents reported here".
   - Unverified red zones show "Reported by 1 person · expires in 31 h".
-  - "+ Report": tap the spot (it must be within 300 m of you), then fill in the form.
-  - "Area Summary" opens a bottom panel built from `/summary`.
-- **Report flow:**
-  - Pick a category.
-  - Emergency categories ask **Happening now / Happened recently**. "Now" shows the **Call 112** step (with the address) before the form.
-  - The form has severity, a note and a photo (camera only; optional for emergencies).
-  - The app checks the 300 m rule before sending, using current GPS or, for "recent", the 1-hour location history.
-  - After sending, it shows the server's message, for example "A pin appears once 3 people report this (1 of 3)".
-- **Alert detail:**
-  - Status, the area summary, every report with its photo, and fix progress (1/3).
-  - A "Confirm it's fixed" button with the proof checklist for grey zones, a camera photo and the 300 m check.
-- **Profile:** email and sign out.
-- The "In an emergency, call 112 first" notice appears on the SOS screen and the report flow.
 - **Zone warning banner (preview):**
-  - While the app is open, it watches the user's location. When they walk into a red zone, grey zone, unhealthy area or (at night) a poorly lit street, a banner slides in, for example "Heads up: Harassment reported here 2 h ago" or "Heavy waste reported in this area".
+  - While the app is open, it watches the user's location. When they walk into a red zone, grey zone, unhealthy area or (at night) a poorly lit street, a banner slides in under the summary pill, for example "Heads up: Harassment reported here 2 h ago".
   - At most once per zone every 6 hours. It's remembered on the phone only.
 
+**Report flow** (started with the centre "+" button):
+1. **Place the pin with a fixed centre crosshair.** The pin stays in the middle of the screen and the user drags the map under it.
+   - The map starts at the user's location and shows a faint 300 m circle. The "Use this spot" button is disabled outside it ("Move closer: you must be within 300 m").
+   - The spot's **street or area name** shows under the pin, via `Location.reverseGeocodeAsync`. It's debounced and cached, and falls back to "Near <area>" if the lookup fails.
+2. **Pick a category** from big chips with icons.
+3. **Emergency categories ask Happening now / Happened recently.** "Happening now" shows the full-screen **Call 112** step, with the street name to read out, before the form.
+4. **Form:** severity (Low / Medium / High), a note and a photo (camera only; optional for emergencies). Then **Submit**, a full-width green button.
+5. The app checks the 300 m rule before sending (current GPS, or for "recent" the 1-hour location history). After sending it shows the server's message, for example "A pin appears once 3 people report this (1 of 3)".
+
+**Alert detail** (bottom sheet, image 1 style):
+- A photo carousel at the top, then the category, status chip, **street name** (never raw coordinates), and "Reported by 3 people · 2 h ago".
+- The area summary for 300 m around the alert, every report with its photo, and fix progress (1/3).
+- A "Confirm it's fixed" button with the proof checklist for grey zones, a camera photo and the 300 m check.
+- **Share button:** the phone's native share sheet (`Share.share`) with text like "⚠️ Harassment reported near Raisina Road · Civic Map", plus a Google Maps link to the spot (`https://maps.google.com/?q=lat,lng`). It contains no personal information. A link that opens the alert inside our app comes later, with the development build.
+
+**My Reports (tab):**
+- A list of cards (image 2 "Recent Activities" style): category icon, street name, date and status. Statuses include "Waiting for 2 more reports", "Red zone · 31 h left", "On the map", "Grey zone", "Fixed".
+- Tapping a card opens the alert. A pending one shows only the user's own report.
+- **Server addition:** `GET /me/reports` returns the signed-in user's reports with their alert status, newest first, 20 per page. It's the only route that shows pending alerts, and only your own.
+
+**Profile:**
+- Email, Appearance (System / Light / Dark), sign out, and the "In an emergency, call 112 first" notice.
+
+**Street names everywhere:** the map pill, alert detail, My Reports and the 112 step all use `reverseGeocodeAsync` (on the phone, free, no key), with a small cache so the same spot isn't looked up twice.
+
+### Notes
 **Heatmap:** react-native-maps' `<Heatmap>` works only with Google Maps.
 - Android in Expo Go: works with no API key.
 - iPhone in Expo Go: Apple Maps only, so the app falls back to faded circles. The real heatmap comes in the phase 8 development build.
 
 **Config:** `mobile/.env` holds `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` and `EXPO_PUBLIC_API_URL` (this PC's Wi-Fi address while developing, the Render URL later).
 
-**Look & design:** the user's ideas are added here before phase 4 starts.
+### Phase 4 checklist
+- [ ] Expo app set up (TypeScript, expo-router), `.env` read, API client that sends the Supabase login token.
+- [ ] `theme.ts`: light and dark palettes, Appearance setting, Poppins + Inter fonts, spacing scale, capped font scaling, safe-area layout.
+- [ ] Light and dark map styles (Android); Apple Maps follows the theme (iPhone).
+- [ ] Sign in with an email code; the session stays after closing the app.
+- [ ] Floating bottom tab bar (Map / My Reports / Profile) with the raised "+" button.
+- [ ] Map: verified pins, red and grey zone circles, Alerts / Heatmap toggle (iPhone fallback), my-location button, SOS / 112 button, reserved Safe Route slot.
+- [ ] Floating Area Summary pill (risk + headline) that opens the full summary sheet.
+- [ ] Report flow: crosshair pin with the 300 m circle, street name under the pin, category chips, Happening now / recently, Call 112 step, camera photo upload, submit and result message.
+- [ ] Alert detail sheet: photos, street name, reports, fix progress, Confirm it's fixed with the proof checklist, native Share.
+- [ ] My Reports tab, plus the server `GET /me/reports` route with a test.
+- [ ] Profile: email, Appearance, sign out, 112 notice.
+- [ ] Zone warning banner while the app is open, at most once per zone per 6 hours.
+- [ ] Tested on Android and iPhone in Expo Go, in light and dark mode and with large system text.
 
 ## Phase 5: Phone SMS check
 - **Provider: Twilio Verify** through Supabase's phone sign-in settings. Twilio handles India's DLT SMS rules, so we don't need our own sender registration.
@@ -185,7 +240,11 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 
 **Database (`003_routes.sql`):**
 - `alerts_near_route(route, buffer_m = 150)` returns visible alerts (verified, red zones, grey zones) within 150 m of the route, with category, status, hot flag, avg_severity, location and distance.
-- `hazard_avoid_polygons(origin, destination, ...)` returns the circles for the avoid route.
+- `hazard_avoid_polygons(origin, destination, ...)` returns the circles for the avoid route, with these safeguards:
+  - **It skips any 60 m circle that contains the origin or the destination.** Otherwise the routing provider can't start or finish the route at all.
+  - **Simple circles:** `ST_Buffer(..., 60, 'quad_segs=4')` gives 16-sided circles, so the request stays small.
+  - **It caps how many circles are sent**, keeping only the highest-risk ones (default 20; ORS also limits total polygon size). Overlapping circles are merged first.
+- **Fallback:** if the "avoid hazards" request fails or returns no route, the server quietly continues with the normal alternative routes. A broken avoid-route never breaks route planning, and the server logs the failure.
 
 **Risk scoring (`server/src/risk.ts`, a pure function with tests):**
 - Points per alert = category weight × avg_severity × status × closeness × night boost.
@@ -237,7 +296,7 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - An optional DigiLocker "Verified reporter" badge through a licensed provider (we never store Aadhaar).
 - A "flag a fake report" button with a moderator list.
 - New accounts waiting 24 h before they can create red zones.
-- Dark mode, a "My reports" history, other languages.
+- Other languages (Hindi etc.). Dark mode and My Reports moved into phase 4.
 
 ## Verification
 - **Database:** `node --env-file=server/.env --env-file=mobile/.env supabase/tests/db-test.mjs` checks every grouping, red, grey, fix and security rule with throwaway users in the ocean at 0.5°N 0.5°E, then deletes them.
