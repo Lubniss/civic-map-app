@@ -53,8 +53,8 @@ export const AlertMarker = memo(function AlertMarker({ alert, onPress }: { alert
 
 /**
  * Heatmap as wide, soft "heat clouds" (same on Android and iPhone): nearby points are grouped into
- * hotspots, each drawn as 4 strokeless concentric circles sized in metres (~320 → 65 m, scaled by
- * severity) with a warm yellow → red gradient at 8–22% opacity, so overlaps blend and names stay readable.
+ * hotspots, each drawn as 5 strokeless concentric circles sized in metres (~380 → 55 m, scaled by
+ * severity) in Google-heatmap colours (green → yellow → orange → red), so overlaps blend and names stay readable.
  */
 export const HeatLayer = memo(function HeatLayer({ points }: { points: HeatPoint[] }) {
   const { isDark } = useTheme();

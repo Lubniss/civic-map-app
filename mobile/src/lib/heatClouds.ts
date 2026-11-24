@@ -1,4 +1,5 @@
-// Turns heat points into a few soft "heat clouds" (hotspots), each drawn as 4 concentric circles in metres.
+// Turns heat points into a few soft "heat clouds" (hotspots), each drawn as 5 concentric circles in metres,
+// in the original Google-heatmap colours (green → yellow → orange → red) with wide green and yellow bands.
 // Used on both Android and iPhone (Google's <Heatmap> caps its radius at 50 px, far too small here).
 import type { HeatPoint } from './types';
 
@@ -20,12 +21,12 @@ export interface HeatCloud {
 /** Hotspot grouping cell, ~150 m. */
 const CELL_M = 150;
 const METRES_PER_DEG = 111_320;
-/** Base ring radii in metres: outer soft tint → core. */
-const BASE_RADII = [320, 220, 130, 65];
-/** Warm gradient: yellow → orange → deep orange → red. */
-const RING_RGB = ['250, 204, 21', '249, 140, 22', '234, 88, 12', '220, 38, 38'];
-const BASE_ALPHA = [0.08, 0.12, 0.2, 0.3];
-export const MAX_CLOUDS = 60;
+/** Base ring radii in metres: wide green haze → larger yellow band → orange → deep orange → red core. */
+const BASE_RADII = [380, 270, 160, 100, 55];
+/** The original Google-heatmap colours: green → yellow → orange → deep orange → red. */
+const RING_RGB = ['74, 222, 128', '250, 204, 21', '249, 115, 22', '234, 88, 12', '220, 38, 38'];
+const BASE_ALPHA = [0.1, 0.13, 0.17, 0.22, 0.3];
+export const MAX_CLOUDS = 50;
 
 export function buildHeatClouds(points: HeatPoint[], isDark: boolean): HeatCloud[] {
   if (!points.length) return [];
