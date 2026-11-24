@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from 'react';
-import { Circle, Marker } from 'react-native-maps';
+import { Platform } from 'react-native';
+import { Circle, Heatmap, Marker } from 'react-native-maps';
 import { buildHeatClouds } from '@/lib/heatClouds';
 import type { HeatPoint, MapAlert } from '@/lib/types';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -52,11 +53,34 @@ export const AlertMarker = memo(function AlertMarker({ alert, onPress }: { alert
 });
 
 /**
- * Heatmap as wide, soft "heat clouds" (same on Android and iPhone): nearby points are grouped into
- * hotspots, each drawn as 5 strokeless concentric circles sized in metres (~380 → 55 m, scaled by
- * severity) in Google-heatmap colours (green → yellow → orange → red), so overlaps blend and names stay readable.
+ * Google's native smooth heatmap (Android), as in the first version, with more room for green and
+ * yellow: maximum spread (radius 50 px, the Android limit) and colour stops shifted so green covers
+ * the outer 0–35% of each hotspot and yellow the next 35–65%, before orange and a red core.
  */
+const HEAT_GRADIENT = {
+  colors: ['#86EFAC', '#4ADE80', '#FACC15', '#F97316', '#DC2626'],
+  startPoints: [0.01, 0.12, 0.35, 0.65, 1],
+  colorMapSize: 256,
+};
+
 export const HeatLayer = memo(function HeatLayer({ points }: { points: HeatPoint[] }) {
+  if (Platform.OS === 'android') {
+    if (!points.length) return null;
+    return (
+      <Heatmap
+        points={points.map((p) => ({ latitude: p.lat, longitude: p.lng, weight: p.weight }))}
+        radius={50}
+        opacity={0.8}
+        gradient={HEAT_GRADIENT}
+      />
+    );
+  }
+  // iPhone in Expo Go only has Apple Maps, which has no heatmap: soft fallback until the
+  // phase 8 app build brings Google Maps (and this native heatmap) to iPhone.
+  return <HeatCloudsFallback points={points} />;
+});
+
+const HeatCloudsFallback = memo(function HeatCloudsFallback({ points }: { points: HeatPoint[] }) {
   const { isDark } = useTheme();
   const clouds = useMemo(() => buildHeatClouds(points, isDark), [points, isDark]);
   return (

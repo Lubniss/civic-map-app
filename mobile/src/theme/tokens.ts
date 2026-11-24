@@ -1,5 +1,5 @@
-// Approved design tokens (PLAN.md → Phase 4 → "Approved theme tokens").
-// Contrast was measured with WCAG formulas: text ≥ 4.5:1, icons and shapes ≥ 3:1.
+﻿// Approved design tokens (PLAN.md â†’ Phase 4 â†’ "Approved theme tokens").
+// Contrast was measured with WCAG formulas: text â‰¥ 4.5:1, icons and shapes â‰¥ 3:1.
 // Every screen takes colours from here only. Never hard-code colours in components.
 
 export type SchemeName = 'light' | 'dark';
@@ -135,6 +135,8 @@ export interface CategoryColors {
 
 export interface CategoryStyle {
   label: string;
+  /** Short helper shown on the report category cards. */
+  hint: string;
   emergency: boolean;
   /** Ionicons name (from @expo/vector-icons). */
   icon: string;
@@ -145,50 +147,50 @@ export interface CategoryStyle {
 const W = '#FFFFFF';
 const DARK_ICON = '#1F2937';
 
-// Light tints = 12% of the fill on white; dark tints = 22% of the fill on the dark card. Icon on tint ≥ 3.5:1.
+// Light tints = 12% of the fill on white; dark tints = 22% of the fill on the dark card. Icon on tint â‰¥ 3.5:1.
 export const categories: Record<Category, CategoryStyle> = {
   unsafe: {
-    label: 'Unsafe area', emergency: true, icon: 'warning',
+    label: 'Unsafe area', hint: 'Dark or isolated spot', emergency: true, icon: 'warning',
     light: { fill: '#DC2626', icon: W, tint: '#FBE5E5', tintIcon: '#DC2626' },
     dark: { fill: '#EF4444', icon: W, tint: '#432928', tintIcon: '#FCA5A5' },
   },
   harassment: {
-    label: 'Harassment', emergency: true, icon: 'hand-left',
+    label: 'Harassment', hint: 'Following or catcalling', emergency: true, icon: 'hand-left',
     light: { fill: '#BE123C', icon: W, tint: '#F7E3E8', tintIcon: '#BE123C' },
     dark: { fill: '#E11D48', icon: W, tint: '#402029', tintIcon: '#FDA4AF' },
   },
   fire: {
-    label: 'Fire', emergency: true, icon: 'flame',
+    label: 'Fire', hint: 'Smoke, blaze or sparks', emergency: true, icon: 'flame',
     light: { fill: '#C2522A', icon: W, tint: '#F8EAE5', tintIcon: '#C2522A' },
     dark: { fill: '#D9673A', icon: W, tint: '#3F3026', tintIcon: '#F4A27E' },
   },
   accident: {
-    label: 'Accident', emergency: true, icon: 'car',
+    label: 'Accident', hint: 'Crash or collision', emergency: true, icon: 'car',
     light: { fill: '#6B55C2', icon: W, tint: '#EDEBF8', tintIcon: '#6B55C2' },
     dark: { fill: '#8676D6', icon: W, tint: '#2C3448', tintIcon: '#B9AEF0' },
   },
   garbage: {
-    label: 'Garbage / Waste', emergency: false, icon: 'trash',
+    label: 'Garbage / Waste', hint: 'Dumped trash', emergency: false, icon: 'trash',
     light: { fill: '#92400E', icon: W, tint: '#F2E8E2', tintIcon: '#92400E' },
     dark: { fill: '#B7791F', icon: W, tint: '#373420', tintIcon: '#E2B45A' },
   },
   road: {
-    label: 'Pothole / Road', emergency: false, icon: 'construct',
+    label: 'Pothole / Road', hint: 'Broken road', emergency: false, icon: 'construct',
     light: { fill: '#0F766E', icon: W, tint: '#E2EFEE', tintIcon: '#0F766E' },
     dark: { fill: '#0D9488', icon: W, tint: '#123A37', tintIcon: '#5EEAD4' },
   },
   light: {
-    label: 'Streetlight out', emergency: false, icon: 'bulb',
+    label: 'Streetlight out', hint: 'Lamp not working', emergency: false, icon: 'bulb',
     light: { fill: '#EAB308', icon: DARK_ICON, tint: '#FCF6E1', tintIcon: '#854D0E' },
     dark: { fill: '#FACC15', icon: DARK_ICON, tint: '#46471E', tintIcon: '#FDE68A' },
   },
   water: {
-    label: 'Water / Drainage', emergency: false, icon: 'water',
+    label: 'Water / Drainage', hint: 'Flooding or leak', emergency: false, icon: 'water',
     light: { fill: '#0284C7', icon: W, tint: '#E1F0F8', tintIcon: '#0284C7' },
     dark: { fill: '#0284C7', icon: W, tint: '#0F3745', tintIcon: '#7DD3FC' },
   },
   other: {
-    label: 'Other', emergency: false, icon: 'ellipsis-horizontal',
+    label: 'Other', hint: 'Anything else worth flagging', emergency: false, icon: 'ellipsis-horizontal',
     light: { fill: '#475569', icon: W, tint: '#E9EBED', tintIcon: '#475569' },
     dark: { fill: '#64748B', icon: W, tint: '#253338', tintIcon: '#CBD5E1' },
   },

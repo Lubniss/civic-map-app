@@ -224,6 +224,27 @@ Done before the phone app, so the app is built on the final rules and no data ne
 
 *Pin rings:* a 2 px ring on every pin, **white in light mode and `#E8F0ED` in dark mode** (less glare at night), plus a soft shadow in light mode.
 
+*Revisions after phone testing (latest):*
+- **Heatmap:** back to Google's native smooth heatmap (no circles) on Android.
+  - radius 50 px (the Android maximum)
+  - colours green → yellow → orange → red, with stops `[0.01, 0.12, 0.35, 0.65, 1]` so green and yellow cover the outer ~65% of each hotspot
+  - iPhone in Expo Go (Apple Maps) has no heatmap, so it keeps a soft fallback until the phase 8 build.
+- **Map layout:**
+  - The **top summary pill is removed.**
+  - A small **Area** button sits **bottom-right**, mirroring **Safe Route** bottom-left. It's coloured by risk: green Low, amber Moderate, red High, grey for no reports, and tapping it opens the summary sheet.
+  - **SOS** is now **top-left**, the mode switch and locate button **top-right**, with the zone banner between them.
+- **Routes:**
+  - the heatmap around the trip, plus alert symbols for both routes (the selected route's are full size, the other's smaller)
+  - a From → To card with a connecting rail
+  - Walk and Drive chips, plus an "On map" chip
+  - a risk-coloured explanation callout, and route cards with icons and press feedback
+- **Report category screen:**
+  - **Header:** bold title and subtitle on the left, circular × on the top-right, and a circular back button on later steps.
+  - **Emergencies:** an **INSTANT ALERT** pill, and tinted cards with matching borders, solid icon badges and short helpers.
+  - **Civic problems:** compact 2×2 cards with tinted borders and helpers.
+  - **"Other issue"** is a slim row.
+  - Every card scales and dims slightly when pressed.
+
 **Typography and layout:**
 - One locked font pairing loaded with `expo-font`: **Poppins** for headings and numbers (as in image 2), **Inter** for body text. Text never falls back to random system fonts.
 - Text respects the phone's accessibility size up to a cap (`maxFontSizeMultiplier` ~1.3), so large system font settings can't push buttons off screen.

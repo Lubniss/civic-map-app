@@ -9,7 +9,7 @@ import MapView, { Circle, PROVIDER_GOOGLE, type Region } from 'react-native-maps
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { CategoryIcon, CategoryPin } from '@/components/CategoryIcon';
-import { Badge, Button, Card, Field, Segmented } from '@/components/ui';
+import { Badge, Button, Card, Field, PressableScale, Segmented } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { distanceM } from '@/lib/distance';
 import { allowedDistance, bestRecentPoint, useLocationHistory, type TrackPoint } from '@/lib/locationHistory';
@@ -112,23 +112,31 @@ export default function ReportScreen() {
     }
   }
 
-  const title: Record<Step, string> = {
-    category: 'What is the problem?',
-    timing: 'When did it happen?',
-    call: 'Call 112 first',
-    pin: 'Where is it?',
-    details: 'Add details',
-    result: 'Report sent',
+  const title: Record<Step, [string, string]> = {
+    category: ['What is the problem?', 'Tap a category, then mark the spot on the map'],
+    timing: ['When did it happen?', 'This decides how the report is handled'],
+    call: ['Call 112 first', 'Your safety comes before the report'],
+    pin: ['Where is it?', 'Drag the map to place the pin'],
+    details: ['Add details', 'A photo and a note help others'],
+    result: ['Report sent', 'Thanks for looking out for your area'],
   };
+  const canGoBack = step !== 'category' && step !== 'result';
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <View style={[styles.topBar, { paddingTop: insets.top + space.sm, borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
-        <Pressable onPress={back} accessibilityRole="button" accessibilityLabel={step === 'category' || step === 'result' ? 'Close' : 'Back'} style={styles.iconBtn}>
-          <Ionicons name={step === 'category' || step === 'result' ? 'close' : 'chevron-back'} size={24} color={colors.text} />
+      <View style={[styles.topBar, { paddingTop: insets.top + space.md, borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
+        {canGoBack ? (
+          <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back" style={[styles.circleBtn, { backgroundColor: colors.cardAlt }]}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </Pressable>
+        ) : null}
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="h1" accessibilityRole="header" numberOfLines={1}>{title[step][0]}</AppText>
+          <AppText variant="caption" color="muted" numberOfLines={1}>{title[step][1]}</AppText>
+        </View>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Close" style={[styles.circleBtn, { backgroundColor: colors.cardAlt }]}>
+          <Ionicons name="close" size={20} color={colors.text} />
         </Pressable>
-        <AppText variant="h2" accessibilityRole="header" style={{ flex: 1 }} numberOfLines={1}>{title[step]}</AppText>
-        {category && step !== 'category' && step !== 'result' ? <CategoryIcon category={category} size={32} /> : null}
       </View>
 
       {step === 'category' && (needsPhone ? <PhoneGate /> : <CategoryStep onPick={pickCategory} />)}
@@ -176,39 +184,115 @@ export default function ReportScreen() {
 }
 
 // ---------------- Step 1: category ----------------
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
 function CategoryStep({ onPick }: { onPick: (c: Category) => void }) {
+  const { badges } = useTheme();
   const insets = useSafeAreaInsets();
-  const group = (title: string, keys: readonly Category[], hint?: string) => (
-    <View style={{ gap: space.md }}>
-      <View>
-        <AppText variant="label" color="muted">{title}</AppText>
-        {hint ? <AppText variant="caption" color="muted">{hint}</AppText> : null}
-      </View>
-      <View style={styles.grid}>
-        {keys.map((k) => <CategoryTile key={k} category={k} onPress={() => onPick(k)} />)}
-      </View>
-    </View>
-  );
+  const civic = NORMAL.filter((k) => k !== 'other');
+
   return (
     <ScrollView contentContainerStyle={{ padding: space.xl, paddingBottom: insets.bottom + space.xxl, gap: space.xxl }}>
-      {group('EMERGENCIES', EMERGENCY, 'Shows on the map at once. Photo optional.')}
-      {group('OTHER PROBLEMS', NORMAL, 'Needs a photo. Appears on the map once 3 people report it.')}
+      {/* Emergencies */}
+      <View style={{ gap: space.md }}>
+        <View style={{ gap: 2 }}>
+          <View style={styles.sectionRow}>
+            <AppText variant="label" color="muted" style={{ letterSpacing: 0.6 }}>EMERGENCIES</AppText>
+            <View style={[styles.instantPill, { backgroundColor: badges.riskHigh.bg }]}>
+              <View style={[styles.instantDot, { backgroundColor: badges.riskHigh.fg }]} />
+              <AppText variant="pillBadge" color={badges.riskHigh.fg} style={{ fontSize: 10, lineHeight: 12 }}>INSTANT ALERT</AppText>
+            </View>
+          </View>
+          <AppText variant="caption" color="muted">Shows on the map at once · Photo optional</AppText>
+        </View>
+        <View style={styles.grid}>
+          {EMERGENCY.map((k) => <EmergencyCard key={k} category={k} onPress={() => onPick(k)} />)}
+        </View>
+      </View>
+
+      {/* Civic problems */}
+      <View style={{ gap: space.md }}>
+        <View style={{ gap: 2 }}>
+          <AppText variant="label" color="muted" style={{ letterSpacing: 0.6 }}>OTHER PROBLEMS</AppText>
+          <AppText variant="caption" color="muted">Needs a photo · On the map once 3 people report it</AppText>
+        </View>
+        <View style={styles.grid}>
+          {civic.map((k) => <CivicCard key={k} category={k} onPress={() => onPick(k)} />)}
+        </View>
+        <OtherRow onPress={() => onPick('other')} />
+      </View>
     </ScrollView>
   );
 }
 
-function CategoryTile({ category, onPress }: { category: Category; onPress: () => void }) {
-  const { colors } = useTheme();
+/** Solid colour badge with the category icon (bolder than the soft list chips). */
+function IconBadge({ category, size: s = 44 }: { category: Category; size?: number }) {
+  const { categoryColor } = useTheme();
+  const c = categoryColor(category);
   return (
-    <Pressable
+    <View style={{ width: s, height: s, borderRadius: s * 0.32, backgroundColor: c.fill, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={categories[category].icon as IconName} size={Math.round(s * 0.5)} color={c.icon} />
+    </View>
+  );
+}
+
+/** Emergency card: soft category tint, matching border, bold icon badge, short helper. */
+function EmergencyCard({ category, onPress }: { category: Category; onPress: () => void }) {
+  const { categoryColor } = useTheme();
+  const c = categoryColor(category);
+  return (
+    <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={categories[category].label}
-      style={({ pressed }) => [styles.tile, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.85 : 1 }]}
+      accessibilityLabel={`${categories[category].label}: ${categories[category].hint}`}
+      style={[styles.emergencyCard, { backgroundColor: c.tint, borderColor: `${c.fill}55` }]}
     >
-      <CategoryIcon category={category} size={40} />
-      <AppText variant="bodyStrong" numberOfLines={2}>{categories[category].label}</AppText>
-    </Pressable>
+      <IconBadge category={category} />
+      <View style={{ gap: 2 }}>
+        <AppText variant="bodyStrong" numberOfLines={1}>{categories[category].label}</AppText>
+        <AppText variant="caption" color={c.tintIcon} numberOfLines={2}>{categories[category].hint}</AppText>
+      </View>
+    </PressableScale>
+  );
+}
+
+/** Compact civic card: light surface, tinted border, punchy icon badge, short helper. */
+function CivicCard({ category, onPress }: { category: Category; onPress: () => void }) {
+  const { colors, categoryColor } = useTheme();
+  const c = categoryColor(category);
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${categories[category].label}: ${categories[category].hint}`}
+      style={[styles.civicCard, { backgroundColor: colors.card, borderColor: `${c.fill}40` }]}
+    >
+      <IconBadge category={category} size={38} />
+      <View style={{ flex: 1, gap: 1 }}>
+        <AppText variant="bodyStrong" numberOfLines={2} style={{ fontSize: 14, lineHeight: 19 }}>{categories[category].label}</AppText>
+        <AppText variant="caption" color="muted" numberOfLines={1}>{categories[category].hint}</AppText>
+      </View>
+    </PressableScale>
+  );
+}
+
+/** Slim full-width "Other issue" row. */
+function OtherRow({ onPress }: { onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Other issue: anything else worth flagging"
+      style={[styles.otherRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+    >
+      <IconBadge category="other" size={36} />
+      <View style={{ flex: 1 }}>
+        <AppText variant="bodyStrong">Other issue</AppText>
+        <AppText variant="caption" color="muted">{categories.other.hint}</AppText>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </PressableScale>
   );
 }
 
@@ -524,7 +608,14 @@ function ResultStep({ result, onDone }: { result: ReportResult; onDone: () => vo
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingBottom: space.sm, borderBottomWidth: 1 },
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.xl, paddingBottom: space.md, borderBottomWidth: 1 },
+  circleBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  instantPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3 },
+  instantDot: { width: 6, height: 6, borderRadius: 3 },
+  emergencyCard: { width: '48%', flexGrow: 1, minHeight: 128, borderRadius: radius.card, borderWidth: 1.5, padding: space.lg, gap: space.md, justifyContent: 'space-between' },
+  civicCard: { width: '48%', flexGrow: 1, minHeight: 72, borderRadius: radius.card, borderWidth: 1.5, padding: space.md, gap: space.sm, flexDirection: 'row', alignItems: 'center' },
+  otherRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, borderRadius: radius.card, borderWidth: 1, paddingHorizontal: space.md, paddingVertical: space.md },
   iconBtn: { width: size.touch, height: size.touch, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   tile: { width: '47%', flexGrow: 1, minHeight: 104, borderRadius: radius.card, borderWidth: 1, padding: space.lg, gap: space.md },

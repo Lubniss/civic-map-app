@@ -1,5 +1,6 @@
 // Small building blocks shared by every screen. Colours come only from the theme.
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View, type TextInputProps, type ViewProps } from 'react-native';
+import { useRef, type ReactNode } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, TextInput, View, type PressableProps, type TextInputProps, type ViewProps } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, size, space, type as typeScale, type BadgeName } from '@/theme/tokens';
 import { AppText } from './AppText';
@@ -112,6 +113,23 @@ export function Segmented<T extends string>({
         );
       })}
     </View>
+  );
+}
+
+/** Pressable with tactile feedback: dips to 96% scale and 85% opacity while pressed. */
+export function PressableScale({ style, children, ...rest }: Omit<PressableProps, 'style'> & { style?: ViewProps['style']; children: ReactNode }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const animate = (to: number) => Animated.spring(scale, { toValue: to, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
+  return (
+    <Pressable
+      {...rest}
+      onPressIn={(e) => { animate(0.96); rest.onPressIn?.(e); }}
+      onPressOut={(e) => { animate(1); rest.onPressOut?.(e); }}
+    >
+      {({ pressed }) => (
+        <Animated.View style={[style, { transform: [{ scale }], opacity: pressed ? 0.85 : 1 }]}>{children}</Animated.View>
+      )}
+    </Pressable>
   );
 }
 

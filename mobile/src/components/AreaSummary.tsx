@@ -20,50 +20,55 @@ export type PillState =
   | { kind: 'error'; message: string }
   | { kind: 'ready'; summary: AreaSummary };
 
-/** Floating pill at the top of the map: risk badge + one-line headline. Tap for the full summary. */
-export function SummaryPill({ state, onPress }: { state: PillState; onPress: () => void }) {
-  const { colors, isDark } = useTheme();
-  let badge: { kind: BadgeName; label: string } | null = null;
-  let text: string;
-  let tappable = false;
+/**
+ * Small "Area" button (bottom-right of the map, mirroring Safe Route), colour-coded by the risk of
+ * what's on screen: green Low, amber Moderate, red High, grey when there are no reports.
+ * Tap for the full Area Summary sheet.
+ */
+export function SummaryButton({ state, onPress, onHint }: { state: PillState; onPress: () => void; onHint: (m: string) => void }) {
+  const { colors, badges, isDark } = useTheme();
+  let kind: BadgeName = 'pending';
+  let label = 'Area';
+  let icon: React.ComponentProps<typeof Ionicons>['name'] = 'pulse';
 
-  switch (state.kind) {
-    case 'loading':
-      text = 'Checking this area…';
-      break;
-    case 'tooLarge':
-      text = 'Zoom in to see alerts and the area summary';
-      break;
-    case 'error':
-      text = state.message;
-      badge = { kind: 'pending', label: 'Offline' };
-      break;
-    case 'ready':
-      tappable = true;
-      text = state.summary.total ? state.summary.headline : 'No active alerts in this area';
-      badge = state.summary.risk ? RISK[state.summary.risk] : { kind: 'pending', label: 'No reports' };
-      break;
+  if (state.kind === 'ready') {
+    if (state.summary.risk) {
+      kind = RISK[state.summary.risk].kind;
+      label = RISK[state.summary.risk].label;
+      icon = state.summary.risk === 'High' ? 'warning' : state.summary.risk === 'Medium' ? 'alert-circle' : 'shield-checkmark';
+    } else {
+      label = 'No reports';
+      icon = 'shield-checkmark-outline';
+    }
+  } else if (state.kind === 'tooLarge') {
+    label = 'Zoom in';
+    icon = 'search';
+  } else if (state.kind === 'error') {
+    label = 'Offline';
+    icon = 'cloud-offline-outline';
   }
+
+  const c = badges[kind];
+  const press = () => {
+    if (state.kind === 'ready') onPress();
+    else if (state.kind === 'tooLarge') onHint('Zoom in to see the area summary');
+    else if (state.kind === 'error') onHint(state.message);
+  };
 
   return (
     <Pressable
-      onPress={tappable ? onPress : undefined}
-      accessibilityRole={tappable ? 'button' : 'text'}
-      accessibilityLabel={`Area summary: ${badge ? `${badge.label}. ` : ''}${text}`}
-      accessibilityHint={tappable ? 'Opens the full area summary' : undefined}
+      onPress={press}
+      accessibilityRole="button"
+      accessibilityLabel={`Area summary: ${label}${state.kind === 'ready' && state.summary.total ? `. ${state.summary.headline}` : ''}`}
+      accessibilityHint="Opens the summary of everything on screen"
       style={({ pressed }) => [
-        styles.pill,
-        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.92 : 1 },
-        !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+        styles.areaButton,
+        { backgroundColor: c.bg, borderColor: c.fg + '55', opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
+        !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
       ]}
     >
-      {state.kind === 'loading' ? (
-        <ActivityIndicator size="small" color={colors.textMuted} />
-      ) : badge ? (
-        <Badge kind={badge.kind} label={badge.label} style={{ alignSelf: 'center' }} />
-      ) : null}
-      <AppText variant="pillTitle" numberOfLines={1} style={{ flex: 1 }}>{text}</AppText>
-      {tappable ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
+      {state.kind === 'loading' ? <ActivityIndicator size="small" color={c.fg} /> : <Ionicons name={icon} size={18} color={c.fg} />}
+      <AppText variant="label" color={c.fg} style={{ fontFamily: 'Inter-SemiBold' }}>{state.kind === 'loading' ? 'Area' : label}</AppText>
     </Pressable>
   );
 }
@@ -136,11 +141,11 @@ export function SummaryDetails({ summary }: { summary: AreaSummary }) {
 }
 
 const styles = StyleSheet.create({
-  pill: {
-    minHeight: 52,
+  areaButton: {
+    minHeight: 48,
     borderRadius: radius.pill,
     borderWidth: 1,
-    paddingHorizontal: space.md,
+    paddingHorizontal: space.lg,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,

@@ -9,11 +9,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { CategoryPin } from '@/components/CategoryIcon';
 import { useTabBarTop } from '@/components/FloatingTabBar';
-import { Badge, Button, Card, Segmented } from '@/components/ui';
+import { HeatLayer } from '@/components/MapLayers';
+import { Badge, Button, Card } from '@/components/ui';
 import { api } from '@/lib/api';
 import { FALLBACK_REGION } from '@/lib/geo';
+import { useHeatmap } from '@/lib/queries';
 import { useStreetName } from '@/lib/streetName';
-import type { Place, PlannedRoute, RoutePlan, RouteRiskLevel } from '@/lib/types';
+import type { Bbox, Place, PlannedRoute, RoutePlan, RouteRiskLevel } from '@/lib/types';
 import { googleMapStyle } from '@/theme/mapStyle';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, size, space, type as typeScale, type BadgeName } from '@/theme/tokens';
@@ -43,7 +45,7 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export default function RoutesScreen() {
-  const { colors, scheme, isDark } = useTheme();
+  const { colors, badges, scheme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarTop = useTabBarTop();
   const mapRef = useRef<MapView>(null);
@@ -129,7 +131,29 @@ export default function RoutesScreen() {
 
   const p = plan.data;
   const shown: PlannedRoute | null = p ? (selected === 'safest' ? p.safest : p.fastest) : null;
+  const other: PlannedRoute | null = p && !p.sameRoute ? (selected === 'safest' ? p.fastest : p.safest) : null;
   const routeColors = { safest: colors.accent, fastest: isDark ? '#60A5FA' : '#2563EB' };
+
+  // Heatmap around the whole trip (both routes) for context.
+  const tripBbox: Bbox | null = useMemo(() => {
+    if (!p) return null;
+    const pts = [...p.fastest.coordinates, ...p.safest.coordinates];
+    const lats = pts.map((c) => c.lat);
+    const lngs = pts.map((c) => c.lng);
+    const m = 0.006;
+    return { minLat: Math.min(...lats) - m, maxLat: Math.max(...lats) + m, minLng: Math.min(...lngs) - m, maxLng: Math.max(...lngs) + m };
+  }, [p]);
+  const heat = useHeatmap(tripBbox, !!p);
+
+  // Alert symbols: everything near the selected route (full size), plus what only the other route passes (smaller).
+  const pins = useMemo(() => {
+    if (!shown) return [];
+    const mine = new Set(shown.alerts.map((a) => a.id));
+    return [
+      ...shown.alerts.map((a) => ({ ...a, onSelected: true })),
+      ...(other?.alerts.filter((a) => !mine.has(a.id)).map((a) => ({ ...a, onSelected: false })) ?? []),
+    ];
+  }, [shown, other]);
 
   return (
     <View style={styles.fill}>
@@ -146,6 +170,7 @@ export default function RoutesScreen() {
         pitchEnabled={false}
         onRegionChangeComplete={(r: Region) => setCenter({ lat: r.latitude, lng: r.longitude })}
       >
+        {p ? <HeatLayer points={heat.data ?? []} /> : null}
         {p && !p.sameRoute ? (
           <>
             {/* The unselected route is drawn first (underneath) and faded. */}
@@ -155,7 +180,7 @@ export default function RoutesScreen() {
         ) : p ? (
           <RouteLine route={p.safest} color={routeColors.safest} />
         ) : null}
-        {shown?.alerts.map((a) => <SmallPin key={a.id} lat={a.lat} lng={a.lng} category={a.category} />)}
+        {pins.map((a) => <SmallPin key={`${a.id}-${a.onSelected ? 's' : 'o'}`} lat={a.lat} lng={a.lng} category={a.category} small={!a.onSelected} />)}
         {destination && !picking ? (
           <Marker coordinate={{ latitude: destination.lat, longitude: destination.lng }} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
             <Ionicons name="flag" size={30} color={colors.text} />
@@ -172,39 +197,53 @@ export default function RoutesScreen() {
       {/* Top: where to + mode */}
       <View style={[styles.top, { top: insets.top + space.sm }]} pointerEvents="box-none">
         <Card style={{ gap: space.md, padding: space.md }}>
-          <View style={styles.row}>
-            <Ionicons name="radio-button-on" size={16} color={colors.accentText} />
-            <AppText variant="label" color="muted" style={{ flex: 1 }}>{locError ? 'Location is off: allow it to plan routes' : 'From your location'}</AppText>
-          </View>
-          <View style={[styles.searchBox, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
-            <Ionicons name="search" size={18} color={colors.textMuted} />
-            <TextInput
-              value={query}
-              onChangeText={(t) => { setQuery(t); if (destination) { setDestination(null); plan.reset(); } }}
-              placeholder="Where to?"
-              placeholderTextColor={colors.textMuted}
-              maxFontSizeMultiplier={typeScale.body.maxScale}
-              style={[styles.searchInput, { color: colors.text, fontFamily: typeScale.body.fontFamily }]}
-              returnKeyType="search"
-              accessibilityLabel="Destination"
-            />
-            {query ? (
-              <Pressable onPress={clear} accessibilityRole="button" accessibilityLabel="Clear destination" hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-              </Pressable>
-            ) : null}
-          </View>
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Segmented<Mode>
-                accessibilityLabel="Travel mode"
-                value={mode}
-                onChange={setMode}
-                options={[{ value: 'walking', label: 'Walking' }, { value: 'driving', label: 'Driving' }]}
-              />
+          {/* From → To with a connecting rail */}
+          <View style={styles.fromTo}>
+            <View style={styles.rail}>
+              <View style={[styles.dotFrom, { borderColor: colors.accent, backgroundColor: colors.card }]} />
+              <View style={[styles.railLine, { backgroundColor: colors.border }]} />
+              <Ionicons name="flag" size={16} color={colors.text} />
             </View>
-            <Pressable onPress={startPicking} accessibilityRole="button" accessibilityLabel="Pick destination on the map" style={[styles.pickBtn, { borderColor: colors.border }]}>
-              <Ionicons name="locate" size={18} color={colors.text} />
+            <View style={{ flex: 1, gap: space.sm }}>
+              <View style={[styles.fromRow, { borderBottomColor: colors.border }]}>
+                <AppText variant="label" color={locError ? colors.danger : 'muted'} numberOfLines={1}>
+                  {locError ? 'Location is off: allow it to plan routes' : 'Your location'}
+                </AppText>
+              </View>
+              <View style={[styles.searchBox, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
+                <TextInput
+                  value={query}
+                  onChangeText={(t) => { setQuery(t); if (destination) { setDestination(null); plan.reset(); } }}
+                  placeholder="Where to?"
+                  placeholderTextColor={colors.textMuted}
+                  maxFontSizeMultiplier={typeScale.body.maxScale}
+                  style={[styles.searchInput, { color: colors.text, fontFamily: typeScale.bodyStrong.fontFamily }]}
+                  returnKeyType="search"
+                  accessibilityLabel="Destination"
+                />
+                {query ? (
+                  <Pressable onPress={clear} accessibilityRole="button" accessibilityLabel="Clear destination" hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                  </Pressable>
+                ) : (
+                  <Ionicons name="search" size={18} color={colors.textMuted} />
+                )}
+              </View>
+            </View>
+          </View>
+          {/* Travel mode chips + pick on map */}
+          <View style={styles.row}>
+            <ModeChip icon="walk" label="Walk" on={mode === 'walking'} onPress={() => setMode('walking')} />
+            <ModeChip icon="car" label="Drive" on={mode === 'driving'} onPress={() => setMode('driving')} />
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={startPicking}
+              accessibilityRole="button"
+              accessibilityLabel="Pick destination on the map"
+              style={({ pressed }) => [styles.chip, { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.85 : 1 }]}
+            >
+              <Ionicons name="pin" size={15} color={colors.text} />
+              <AppText variant="label">On map</AppText>
             </Pressable>
           </View>
         </Card>
@@ -252,7 +291,14 @@ export default function RoutesScreen() {
           </Card>
         ) : p ? (
           <Card style={{ gap: space.md }}>
-            <AppText variant="bodyStrong">{p.explanation}</AppText>
+            <View style={[styles.callout, { backgroundColor: badges[RISK_BADGE[p.safest.riskLevel].kind].bg }]}>
+              <Ionicons
+                name={p.sameRoute ? 'checkmark-circle' : 'shield-checkmark'}
+                size={20}
+                color={badges[RISK_BADGE[p.safest.riskLevel].kind].fg}
+              />
+              <AppText variant="bodyStrong" color={badges[RISK_BADGE[p.safest.riskLevel].kind].fg} style={{ flex: 1 }}>{p.explanation}</AppText>
+            </View>
             {p.sameRoute ? (
               <RouteCard which="safest" title="Fastest & safest" route={p.safest} color={routeColors.safest} selected onPress={() => {}} />
             ) : (
@@ -292,15 +338,16 @@ const RouteLine = memo(function RouteLine({ route, color, dashed, faded, onPress
   );
 });
 
-function SmallPin({ lat, lng, category }: { lat: number; lng: number; category: PlannedRoute['alerts'][number]['category'] }) {
+function SmallPin({ lat, lng, category, small }: { lat: number; lng: number; category: PlannedRoute['alerts'][number]['category']; small?: boolean }) {
   const [track, setTrack] = useState(true);
   useEffect(() => {
+    setTrack(true);
     const t = setTimeout(() => setTrack(false), 600);
     return () => clearTimeout(t);
-  }, []);
+  }, [small]);
   return (
-    <Marker coordinate={{ latitude: lat, longitude: lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={track}>
-      <CategoryPin category={category} size={26} />
+    <Marker coordinate={{ latitude: lat, longitude: lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={track} zIndex={small ? 3 : 4}>
+      <CategoryPin category={category} size={small ? 22 : 30} dimmed={small} />
     </Marker>
   );
 }
@@ -316,15 +363,39 @@ function RouteCard({ which, title, route, color, selected, onPress }: {
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={`${title} route: ${minutes(route.durationS)}, ${km(route.distanceM)}, ${badge.label}`}
-      style={[styles.routeCard, { borderColor: selected ? color : colors.border, backgroundColor: selected ? colors.cardAlt : colors.card }]}
+      style={({ pressed }) => [
+        styles.routeCard,
+        { borderColor: selected ? color : colors.border, backgroundColor: selected ? colors.cardAlt : colors.card, transform: [{ scale: pressed ? 0.98 : 1 }] },
+      ]}
     >
       <View style={styles.row}>
-        <View style={[styles.swatch, { backgroundColor: color }, which === 'fastest' && { opacity: 0.85 }]} />
+        <View style={[styles.routeIcon, { backgroundColor: color }]}>
+          <Ionicons name={which === 'safest' ? 'shield-checkmark' : 'flash'} size={13} color="#FFFFFF" />
+        </View>
         <AppText variant="label" color="muted">{title.toUpperCase()}</AppText>
       </View>
       <AppText variant="stat">{minutes(route.durationS)}</AppText>
-      <AppText variant="caption" color="muted">{km(route.distanceM)} · {route.alerts.length} alert{route.alerts.length === 1 ? '' : 's'} nearby</AppText>
+      <AppText variant="caption" color="muted">{km(route.distanceM)} · {route.alerts.length} alert{route.alerts.length === 1 ? '' : 's'}</AppText>
       <Badge kind={badge.kind} label={badge.label} />
+    </Pressable>
+  );
+}
+
+function ModeChip({ icon, label, on, onPress }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; on: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: on }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.chip,
+        { backgroundColor: on ? colors.accent : colors.card, borderColor: on ? colors.accent : colors.border, opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
+      <Ionicons name={icon} size={16} color={on ? colors.onAccent : colors.text} />
+      <AppText variant="label" color={on ? colors.onAccent : colors.text}>{label}</AppText>
     </Pressable>
   );
 }
@@ -336,9 +407,15 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderWidth: 1, borderRadius: radius.input, paddingHorizontal: space.md, minHeight: 46 },
   searchInput: { flex: 1, fontSize: 16, paddingVertical: space.sm },
-  pickBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  fromTo: { flexDirection: 'row', gap: space.md },
+  rail: { alignItems: 'center', paddingTop: 4, paddingBottom: 14, width: 18 },
+  dotFrom: { width: 12, height: 12, borderRadius: 6, borderWidth: 3 },
+  railLine: { flex: 1, width: 2, marginVertical: 3, borderRadius: 1 },
+  fromRow: { minHeight: 22, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: space.sm },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 36 },
+  callout: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, borderRadius: radius.input, padding: space.md },
+  routeIcon: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   suggestion: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: StyleSheet.hairlineWidth },
   crosshair: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   routeCard: { flex: 1, borderWidth: 2, borderRadius: radius.card, padding: space.md, gap: space.xs },
-  swatch: { width: 14, height: 4, borderRadius: 2 },
 });

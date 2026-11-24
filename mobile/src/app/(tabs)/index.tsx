@@ -5,7 +5,7 @@ import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertPreview, AlertPreviewHeader } from '@/components/AlertPreview';
-import { SummaryDetails, SummaryHeader, SummaryPill, type PillState } from '@/components/AreaSummary';
+import { SummaryButton, SummaryDetails, SummaryHeader, type PillState } from '@/components/AreaSummary';
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTabBarTop } from '@/components/FloatingTabBar';
@@ -87,8 +87,8 @@ export default function MapScreen() {
   }, [bbox, summary.isPending, summary.isError, summary.error, summary.data]);
 
   const mapStyle = useMemo(() => googleMapStyle(scheme), [scheme]);
-  const pillTop = insets.top + space.sm;
-  const controlsTop = pillTop + 52 + space.md;
+  const controlsTop = insets.top + space.sm;
+  const bottomRowY = tabBarTop + size.fabLift + space.lg;
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
@@ -113,17 +113,12 @@ export default function MapScreen() {
           : <HeatLayer points={heat.data ?? []} />}
       </MapView>
 
-      {/* Top: always-visible Area Summary pill */}
-      <View style={[styles.pillWrap, { top: pillTop }]} pointerEvents="box-none">
-        <SummaryPill state={pillState} onPress={() => setSummaryOpen(true)} />
-      </View>
-
       {/* Zone warning banner: between the SOS button and the right-hand controls, so neither is covered */}
       <View style={[styles.banner, { top: controlsTop }]} pointerEvents="box-none">
         <ZoneBanner onOpen={setSelected} />
       </View>
 
-      {/* Left, under the pill and apart from the map controls: SOS (hold to call 112) */}
+      {/* Top-left, apart from the map controls: SOS (hold to call 112) */}
       <View style={[styles.left, { top: controlsTop }]} pointerEvents="box-none">
         <SosButton onHint={showHint} />
       </View>
@@ -142,19 +137,24 @@ export default function MapScreen() {
         accessibilityHint="Compare the fastest and the safest route to a destination"
         style={({ pressed }) => [
           styles.safeRoute,
-          { bottom: tabBarTop + size.fabLift + space.lg, backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
+          { bottom: bottomRowY, backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
           !isDark && { shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
         ]}
       >
-        <Ionicons name="shield-checkmark" size={18} color={colors.accentText} />
-        <AppText variant="label">Safe Route</AppText>
+        <Ionicons name="navigate-circle" size={20} color={colors.accentText} />
+        <AppText variant="label" style={{ fontFamily: 'Inter-SemiBold' }}>Safe Route</AppText>
       </Pressable>
+
+      {/* Bottom-right: area summary, colour-coded by risk (replaces the old top pill) */}
+      <View style={[styles.areaWrap, { bottom: bottomRowY }]} pointerEvents="box-none">
+        <SummaryButton state={pillState} onPress={() => setSummaryOpen(true)} onHint={showHint} />
+      </View>
 
       {location.status === 'denied' ? (
         <Pressable
           onPress={refresh}
           accessibilityRole="button"
-          style={[styles.notice, { bottom: tabBarTop + size.fabLift + space.lg + 56, backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.notice, { bottom: bottomRowY + 56, backgroundColor: colors.card, borderColor: colors.border }]}
         >
           <AppText variant="caption" color="muted">Location is off. Tap to allow it so the map can show alerts around you.</AppText>
         </Pressable>
@@ -257,7 +257,7 @@ function RoundButton({ icon, label, onPress }: { icon: React.ComponentProps<type
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  pillWrap: { position: 'absolute', left: space.lg, right: space.lg },
+  areaWrap: { position: 'absolute', right: space.lg },
   banner: { position: 'absolute', left: space.lg + size.mapButton + space.md, right: space.lg + size.mapButton + 4 + space.md },
   left: { position: 'absolute', left: space.lg },
   right: { position: 'absolute', right: space.lg, gap: space.md },
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   safeRoute: {
     position: 'absolute',
     left: space.lg,
-    minHeight: size.touch + 4,
+    minHeight: 48,
     borderRadius: radius.pill,
     borderWidth: 1,
     paddingHorizontal: space.lg,
