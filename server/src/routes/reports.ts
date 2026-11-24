@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { me } from '../auth.js';
+import { assertPhoneVerified, me } from '../auth.js';
 import { db } from '../db.js';
 import { ApiError, fromDbError } from '../errors.js';
 import { assertOwnPhoto } from '../photos.js';
@@ -15,6 +15,7 @@ export const reportsRouter = Router();
 reportsRouter.post('/', async (req, res) => {
   const body = parse(reportBody, req.body);
   const user = me(req);
+  assertPhoneVerified(user);
 
   const since = new Date(Date.now() - 86_400_000).toISOString();
   const { count, error: countError } = await db

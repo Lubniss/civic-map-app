@@ -7,8 +7,8 @@
 | 1. Database | Done: `001_init.sql` applied (plus service_role grants), `db-test.mjs` 34/34 passing |
 | 2. Server | Done: Express 5 + TypeScript API, 28 unit tests and 33 smoke checks passing (summary always mentions active red zones) |
 | 3. Report rules update | Done: `002_report_rules.sql` applied; db-test 56/56, smoke 41/41, unit tests 37/37 |
-| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Next: check the whole Phase 4 checklist on both phones, then phase 5 |
-| 5. Phone SMS check | Not started |
+| 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category → now/recent → Call 112 → crosshair pin with 300 m check and street name → details with camera photo → result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
+| 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. Waiting for the user to set up Twilio Verify in Supabase, test it, then turn the switch on |
 | 6. Fastest vs. Safest Route | Not started |
 | 7. Deploy | Not started |
 | 8. Notifications (push + zone-entry alerts) | Not started |
@@ -302,6 +302,22 @@ Done before the phone app, so the app is built on the final rules and no data ne
 - [ ] Tested on Android and iPhone in Expo Go, in light and dark mode and with large system text.
 
 ## Phase 5: Phone SMS check
+**As built:**
+- **App:** Profile → "Verify phone" opens a screen: number (with a +91 default) → SMS code, using `supabase.auth.updateUser({ phone })` then `verifyOtp({ type: 'phone_change' })`.
+- **Gates:** the report flow shows a "Verify your phone to report" card when the server needs it, and Confirm it's fixed shows a "Verify phone" button if the server answers `PHONE_REQUIRED`.
+- **Server:** `REQUIRE_PHONE_VERIFICATION=true` in `server/.env` makes `POST /reports` and `POST /alerts/:id/confirm-fix` return 403 `PHONE_REQUIRED` for accounts without a confirmed phone. `/health` reports `requirePhone` so the app knows.
+- **The switch stays off until Twilio is set up and tested.**
+
+**User setup steps:**
+1. Sign up at https://www.twilio.com/try-twilio and verify your own email and phone.
+2. In Twilio, go to **Verify → Services → Create new**, name it `Civic Map`, and copy the **Service SID** (starts with `VA`).
+3. From the Twilio console home, copy the **Account SID** (starts with `AC`) and the **Auth Token**.
+4. In Supabase, go to **Authentication → Sign In / Providers → Phone**, turn on **Enable Phone provider**, set the SMS provider to **Twilio Verify**, and paste the Account SID, Auth Token and Verify Service SID. Save. (You type these yourself; never share them.)
+5. On a Twilio **trial**, SMS only reaches numbers added under **Verified Caller IDs**. Add your test phones there, or upgrade the account.
+6. Test in the app: Profile → Verify phone → enter the number → type the SMS code → "Phone verified".
+7. Then set `REQUIRE_PHONE_VERIFICATION=true` in `server/.env` and restart the server.
+
+**Original plan:**
 - **Provider: Twilio Verify** through Supabase's phone sign-in settings. Twilio handles India's DLT SMS rules, so we don't need our own sender registration.
   - Cost is roughly ₹4–6 per verification. The user creates the Twilio account.
 - **Flow:** after email sign-in, the app asks for a phone number once. It sends an SMS code, confirms it, and the phone is saved on the account. Supabase allows each phone number on only one account.

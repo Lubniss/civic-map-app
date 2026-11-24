@@ -24,7 +24,7 @@ const METRES_PER_DEG = 111_320;
 const BASE_RADII = [320, 220, 130, 65];
 /** Warm gradient: yellow → orange → deep orange → red. */
 const RING_RGB = ['250, 204, 21', '249, 140, 22', '234, 88, 12', '220, 38, 38'];
-const BASE_ALPHA = [0.08, 0.12, 0.16, 0.22];
+const BASE_ALPHA = [0.08, 0.12, 0.2, 0.3];
 export const MAX_CLOUDS = 60;
 
 export function buildHeatClouds(points: HeatPoint[], isDark: boolean): HeatCloud[] {
@@ -62,7 +62,7 @@ export function buildHeatClouds(points: HeatPoint[], isDark: boolean): HeatCloud
       count: c.count,
       rings: BASE_RADII.map((r, i) => ({
         radius: Math.round(r * scale),
-        fill: `rgba(${RING_RGB[i]}, ${Math.min(0.3, BASE_ALPHA[i]! * intensity * darkBoost).toFixed(3)})`,
+        fill: `rgba(${RING_RGB[i]}, ${Math.min(0.36, BASE_ALPHA[i]! * intensity * darkBoost).toFixed(3)})`,
       })),
     };
   });

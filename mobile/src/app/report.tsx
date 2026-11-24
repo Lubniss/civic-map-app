@@ -13,6 +13,7 @@ import { Badge, Button, Card, Field, Segmented } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { distanceM } from '@/lib/distance';
 import { allowedDistance, bestRecentPoint, useLocationHistory, type TrackPoint } from '@/lib/locationHistory';
+import { useMyPhone, useRequirePhone } from '@/lib/phone';
 import { useStreetName } from '@/lib/streetName';
 import { submitReport, type ReportResult, type ReporterLocation } from '@/lib/submitReport';
 import { googleMapStyle } from '@/theme/mapStyle';
@@ -44,6 +45,9 @@ export default function ReportScreen() {
   const [result, setResult] = useState<ReportResult | null>(null);
 
   const emergency = category ? categories[category].emergency : false;
+  const requirePhone = useRequirePhone();
+  const myPhone = useMyPhone();
+  const needsPhone = requirePhone && !myPhone.confirmed;
 
   function back() {
     setError(null);
@@ -127,7 +131,7 @@ export default function ReportScreen() {
         {category && step !== 'category' && step !== 'result' ? <CategoryIcon category={category} size={32} /> : null}
       </View>
 
-      {step === 'category' && <CategoryStep onPick={pickCategory} />}
+      {step === 'category' && (needsPhone ? <PhoneGate /> : <CategoryStep onPick={pickCategory} />)}
       {step === 'timing' && category && (
         <TimingStep
           onPick={(t) => {
@@ -205,6 +209,24 @@ function CategoryTile({ category, onPress }: { category: Category; onPress: () =
       <CategoryIcon category={category} size={40} />
       <AppText variant="bodyStrong" numberOfLines={2}>{categories[category].label}</AppText>
     </Pressable>
+  );
+}
+
+/** Shown instead of the categories when the server requires a verified phone and this account has none. */
+function PhoneGate() {
+  const { colors } = useTheme();
+  return (
+    <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.lg }}>
+      <Card style={{ gap: space.md, alignItems: 'flex-start' }}>
+        <Ionicons name="phone-portrait-outline" size={28} color={colors.textMuted} />
+        <AppText variant="h2">Verify your phone to report</AppText>
+        <AppText variant="body" color="muted">
+          To stop fake reports, each account needs its own phone number. It takes one SMS code, and your number is never shown to anyone.
+        </AppText>
+        <Button title="Verify phone" onPress={() => router.push('/verify-phone')} />
+      </Card>
+      <AppText variant="caption" color="muted" style={{ textAlign: 'center' }}>In an emergency, call 112 first.</AppText>
+    </ScrollView>
   );
 }
 

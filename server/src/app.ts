@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
 import { requireAuth } from './auth.js';
+import { env } from './env.js';
 import { ApiError } from './errors.js';
 import { alertsRouter } from './routes/alerts.js';
 import { mapRouter } from './routes/map.js';
@@ -20,7 +21,13 @@ export function createApp() {
   app.use(rateLimit({ windowMs: 15 * 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, service: 'civic-map-server', time: new Date().toISOString() });
+    res.json({
+      ok: true,
+      service: 'civic-map-server',
+      time: new Date().toISOString(),
+      /** Phase 5: the app asks users to verify their phone before reporting when this is true. */
+      requirePhone: env.REQUIRE_PHONE_VERIFICATION,
+    });
   });
 
   // Everything below needs a signed-in user.

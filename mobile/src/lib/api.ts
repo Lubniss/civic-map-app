@@ -49,6 +49,8 @@ export interface Health {
   ok: boolean;
   service: string;
   time: string;
+  /** Phase 5: a verified phone is needed to report / confirm fixes. */
+  requirePhone?: boolean;
 }
 
 export const getHealth = () => api<Health>('/health', { auth: false });

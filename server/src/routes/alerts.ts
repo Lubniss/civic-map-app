@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { me } from '../auth.js';
+import { assertPhoneVerified, me } from '../auth.js';
 import { isEmergency, isHot, isVisible, proofNeeded } from '../categories.js';
 import { db } from '../db.js';
 import { ApiError, fromDbError } from '../errors.js';
@@ -140,6 +140,7 @@ alertsRouter.post('/:id/confirm-fix', async (req, res) => {
   const { id } = parse(alertIdParam, req.params);
   const body = parse(confirmFixBody, req.body);
   const user = me(req);
+  assertPhoneVerified(user);
 
   await assertOwnPhoto(user.id, body.photo_path);
   const { data, error } = await db.rpc('confirm_fix', {

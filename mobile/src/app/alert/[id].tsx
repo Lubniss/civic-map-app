@@ -211,6 +211,7 @@ function ConfirmFixSheet({ visible, onClose, data }: { visible: boolean; onClose
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const a = data.alert;
 
@@ -243,6 +244,7 @@ function ConfirmFixSheet({ visible, onClose, data }: { visible: boolean; onClose
       queryClient.invalidateQueries({ queryKey: ['me', 'reports'] });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
+      setErrorCode(e instanceof ApiError ? e.code : null);
     } finally {
       setBusy(false);
     }
@@ -250,7 +252,7 @@ function ConfirmFixSheet({ visible, onClose, data }: { visible: boolean; onClose
 
   function close() {
     onClose();
-    setTimeout(() => { setPhotoUri(null); setNote(''); setError(null); setDone(null); }, 250);
+    setTimeout(() => { setPhotoUri(null); setNote(''); setError(null); setErrorCode(null); setDone(null); }, 250);
   }
 
   return (
@@ -287,6 +289,9 @@ function ConfirmFixSheet({ visible, onClose, data }: { visible: boolean; onClose
           )}
           <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="e.g. New lights installed" maxLength={500} />
           {error ? <AppText variant="body" color={colors.danger}>{error}</AppText> : null}
+          {errorCode === 'PHONE_REQUIRED' ? (
+            <Button title="Verify phone" variant="secondary" onPress={() => { close(); router.push('/verify-phone'); }} />
+          ) : null}
           <Button title="Send confirmation" onPress={send} loading={busy} disabled={!photoUri} />
         </>
       )}

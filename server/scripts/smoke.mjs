@@ -50,9 +50,12 @@ const users = {}; // name -> { id, token }
 const uploaded = [];
 const alertIds = new Set();
 
-async function signIn(name) {
+async function signIn(name, { phone = true } = {}) {
   const email = `civicmap-smoke-${name.toLowerCase()}-${Date.now()}@example.com`;
-  const created = await admin('/auth/v1/admin/users', { method: 'POST', body: { email, email_confirm: true } });
+  // Test users get a fake, already-confirmed phone number (no SMS is sent), like a verified user.
+  const body = { email, email_confirm: true };
+  if (phone) Object.assign(body, { phone: `+1555${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`, phone_confirm: true });
+  const created = await admin('/auth/v1/admin/users', { method: 'POST', body });
   if (!created.ok) throw new Error(`create user ${name}: ${short(created)}`);
   const id = created.data.id;
   users[name] = { id };
@@ -117,6 +120,20 @@ async function run() {
   console.log('\nSign in 4 test users with one-time codes');
   for (const n of ['A', 'B', 'C', 'D']) await signIn(n);
   check('4 users signed in', Object.values(users).every((u) => u.token));
+
+  console.log(`\nPhone check (REQUIRE_PHONE_VERIFICATION is ${health.data.requirePhone ? 'ON' : 'off'})`);
+  await signIn('NoPhone', { phone: false });
+  const np = await uploadPhoto('NoPhone');
+  const elsewhere = near(5000); // its own spot, so it can't affect the checks below
+  const npReport = await api('/reports', users.NoPhone.token, {
+    method: 'POST', body: { ...elsewhere, category: 'road', severity: 2, photo_path: np.path, ...here(elsewhere) },
+  });
+  if (npReport.ok) alertIds.add(npReport.data.alertId);
+  if (health.data.requirePhone) {
+    check('user without a verified phone cannot report (403 PHONE_REQUIRED)', npReport.status === 403 && npReport.data.error.code === 'PHONE_REQUIRED', short(npReport));
+  } else {
+    check('with the switch off, a user without a phone can still report', npReport.status === 201, short(npReport));
+  }
 
   console.log('\nPhoto storage rules');
   const own = await uploadPhoto('A');
