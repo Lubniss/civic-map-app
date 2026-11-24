@@ -167,6 +167,8 @@ async function run() {
   const sum = await api(`/summary?bbox=${BBOX}`, users.D.token);
   check('GET /summary?bbox gives a headline and risk', sum.ok && typeof sum.data.headline === 'string' && !!sum.data.risk, short(sum));
   console.log(`        headline: "${sum.data?.headline}"`);
+  check('summary mentions the single-report red zone', sum.data?.headline?.includes('safety concerns')
+    && sum.data?.redZoneCategories?.includes('unsafe'), sum.data?.headline);
   const sumR = await api(`/summary?lat=${P.lat}&lng=${P.lng}&radius=200`, users.D.token);
   check('GET /summary around a spot counts only nearby alerts', sumR.ok && sumR.data.alertCount === 1 && sumR.data.total === 3, short(sumR));
   const badBox = await api('/summary?bbox=70,20,80,30', users.D.token);

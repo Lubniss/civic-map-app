@@ -25,30 +25,38 @@ mapRouter.get('/heatmap', async (req, res) => {
 // GET /summary?lat=&lng=&radius= (around a tapped spot; radius 50-2000 m, default 300)
 // Uses the same alerts as the pins: verified alerts and active red zones.
 mapRouter.get('/summary', async (req, res) => {
-  let alertIds: string[];
+  let alerts: { id: string; status: string }[];
   let scope: string;
 
   if (req.query.bbox !== undefined) {
-    alertIds = (await visibleAlertsInBbox(req.query.bbox, 200)).map((a) => a.id);
+    alerts = await visibleAlertsInBbox(req.query.bbox, 200);
     scope = 'Everything currently visible on the map';
   } else {
     const q = parse(radiusQuery, req.query);
     const box = bboxAround(q.lat, q.lng, q.radius);
     const rows = await visibleAlertsInBbox(`${box.minLng},${box.minLat},${box.maxLng},${box.maxLat}`, 200);
-    alertIds = rows.filter((a) => distanceM(q.lat, q.lng, a.lat, a.lng) <= q.radius).map((a) => a.id);
+    alerts = rows.filter((a) => distanceM(q.lat, q.lng, a.lat, a.lng) <= q.radius);
     scope = `Within ${q.radius} m of the selected spot`;
   }
+  const alertIds = alerts.map((a) => a.id);
+  const redZoneIds = new Set(alerts.filter((a) => a.status === 'red_zone').map((a) => a.id));
 
   let reports: SummaryReport[] = [];
   if (alertIds.length) {
     const { data, error } = await db
       .from('reports')
-      .select('category, severity, note, created_at')
+      .select('alert_id, category, severity, note, created_at')
       .in('alert_id', alertIds)
       .order('created_at', { ascending: false })
       .limit(2000);
     if (error) throw fromDbError(error);
-    reports = (data ?? []) as SummaryReport[];
+    reports = (data ?? []).map((r) => ({
+      category: r.category as Category,
+      severity: r.severity,
+      note: r.note,
+      created_at: r.created_at,
+      inRedZone: redZoneIds.has(r.alert_id),
+    }));
   }
 
   res.json({ scope, alertCount: alertIds.length, ...buildSummary(reports) });

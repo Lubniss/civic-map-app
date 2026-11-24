@@ -38,6 +38,38 @@ describe('headline', () => {
     expect(headline(analyze(reports, NOW))).toBe('A very harassment-prone area with safety concerns.');
   });
 
+  it('always mentions an active red zone, even with a single report', () => {
+    const reports = [...many(5, 'garbage'), { ...r('unsafe', 3), inRedZone: true }];
+    expect(headline(analyze(reports, NOW))).toBe('A very dirty area with safety concerns.');
+  });
+
+  it('does not mention a single unsafe report that is not an active red zone', () => {
+    const reports = [...many(5, 'garbage'), r('unsafe', 3)];
+    expect(headline(analyze(reports, NOW))).toBe('A very dirty area.');
+  });
+
+  it('mentions both red-zone categories when both are active', () => {
+    const reports = [...many(4, 'garbage'), { ...r('harassment', 2), inRedZone: true }, { ...r('unsafe', 2), inRedZone: true }];
+    const text = headline(analyze(reports, NOW));
+    expect(text).toContain('reports of harassment');
+    expect(text).toContain('safety concerns');
+  });
+
+  it('puts red zones first and keeps at most three extra issues', () => {
+    const reports = [
+      ...many(6, 'garbage'), ...many(3, 'water'), ...many(3, 'road'), ...many(3, 'light'),
+      { ...r('harassment', 2), inRedZone: true },
+    ];
+    expect(headline(analyze(reports, NOW))).toBe(
+      'A very dirty area with reports of harassment, drainage problems and damaged roads.',
+    );
+  });
+
+  it('a red zone that is the main issue leads the sentence', () => {
+    const reports = [{ ...r('unsafe', 3), inRedZone: true }];
+    expect(headline(analyze(reports, NOW))).toBe('An unsafe area.');
+  });
+
   it('lists up to three extra issues with commas', () => {
     const reports = [...many(6, 'garbage'), ...many(3, 'water'), ...many(3, 'road'), ...many(3, 'light'), ...many(2, 'other')];
     expect(headline(analyze(reports, NOW))).toBe(
@@ -70,6 +102,13 @@ describe('buildSummary', () => {
 
   it('returns an empty summary with no risk when nothing is reported', () => {
     const s = buildSummary([], NOW);
-    expect(s).toMatchObject({ total: 0, risk: null, topIssue: null, breakdown: [], latest: [] });
+    expect(s).toMatchObject({ total: 0, risk: null, topIssue: null, breakdown: [], latest: [], redZoneCategories: [] });
+  });
+
+  it('lists which categories have an active red zone', () => {
+    const s = buildSummary([...many(3, 'garbage'), { ...r('unsafe', 3), inRedZone: true }], NOW);
+    expect(s.redZoneCategories).toEqual(['unsafe']);
+    expect(s.breakdown.find((b) => b.category === 'unsafe')?.redZone).toBe(true);
+    expect(s.breakdown.find((b) => b.category === 'garbage')?.redZone).toBe(false);
   });
 });
