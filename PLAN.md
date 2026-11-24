@@ -10,7 +10,7 @@
 | 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category â†’ now/recent â†’ Call 112 â†’ crosshair pin with 300 m check and street name â†’ details with camera photo â†’ result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
 | 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. **Real SMS deferred by the user**: the switch stays off (anyone signed in can report). To finish later: set up Twilio Verify (steps below), test, then set `REQUIRE_PHONE_VERIFICATION=true` |
 | 6. Fastest vs. Safest Route | Done: `003_routes.sql` applied; unit tests 52/52; live route test 11/11 (3 red zones on the fastest route, the safest avoids 2: risk 135 -> 24.5, +1 min). Needs a check on the phones |
-| 7. Deploy | `render.yaml` ready and production build checked (smoke 45/45 on `npm start`). Waiting for the user to create the Render service |
+| 7. Go live without a PC: server → Supabase Edge Functions + Android APK | **Changed by the user:** Render needs a card, and the goal is a real installable mobile app. Not started: see "Phase 7 (revised)" |
 | 8. Notifications (push + zone-entry alerts) | Not started |
 
 ## Context
@@ -411,7 +411,28 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - The comparison sheet shows ETA, distance, a risk badge and the "avoidsâ€¦" explanation.
 - It picks between routes but doesn't give turn-by-turn directions.
 
-## Phase 7: Deploy
+## Phase 7 (revised): go live without a PC
+**Why:** Render (even the free plan) asks for a card, and the user wants an installable mobile app rather than anything web-hosted. Supabase is already online and free with no card, and it can run our server code as **Edge Functions**.
+
+**Step 7a: move the API into one Supabase Edge Function, `api`.**
+- The same routes and the same JSON as today: `/health`, `/alerts`, `/alerts/:id`, `/alerts/:id/confirm-fix`, `/reports`, `/me/reports`, `/heatmap`, `/summary`, `/routes/plan`, `/geocode`, `/geocode/reverse`.
+- The pure logic files (summary, risk, routePlanner, schemas, categories, geo, errors…) are reused unchanged and copied in by a small sync script. Only the Express "shell" is replaced by a lightweight router that runs on Supabase (Deno).
+- **Auth:** the function does its own token check, as today (with Supabase's JWT gate off, so `/health` stays public).
+- **Secrets:** `ORS_API_KEY` is set with `supabase secrets set`. The Supabase URL and service key come from Supabase's built-in function environment. Nothing goes in the app.
+- **The app only changes `EXPO_PUBLIC_API_URL`**, to `https://<project-ref>.supabase.co/functions/v1/api`.
+- **Tests:** the existing `npm run smoke` and `npm run route-smoke` run against the deployed function (`API_URL=...`), plus the unit tests.
+- **User needs:** to sign in once with the Supabase CLI (`npx supabase login`, which opens a browser). No card.
+- **Rate limits:** Express's per-IP and per-user limiters don't carry over, so the 20 reports a day (already enforced with a database count) stays, and the route-plan limit becomes a simple database-backed check.
+
+**Step 7b: installable Android app (APK).**
+- An EAS Build "preview" profile produces a `.apk` you can install on any Android phone and share. It needs a free Expo account and no card.
+- The app name, icon and package id are set in `app.json` (e.g. `com.civicmap.app`).
+- **iPhone:** installing outside the App Store needs Apple's paid developer account ($99/year), so iPhone stays on Expo Go for now.
+- **Note:** a real build also allows the phase 8 extras (real heatmap on iPhone with Google Maps, push and background alerts). Those still need a Google Maps API key for Android builds, which is checked during 7b.
+
+**Security reminder (user chose not to rotate yet):** the Supabase secret key and the ORS key were shown in a screenshot on 2026-11-25. Rotate both before sharing the app publicly: create a new Supabase secret key and revoke the old one, and regenerate the ORS key.
+
+## Phase 7 (original, Render; replaced, kept for reference)
 **As built:**
 - **`render.yaml` (Blueprint)** at the repo root:
   - a free web service `civic-map-server` in the Singapore region, from `server/`
