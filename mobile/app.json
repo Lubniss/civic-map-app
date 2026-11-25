@@ -8,11 +8,13 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.civicmap.app"
     },
     "android": {
+      "package": "com.civicmap.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0F3D3A",
+        "backgroundColor": "#F6F5EC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -28,10 +30,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F6F8F7",
+          "backgroundColor": "#F6F5EC",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 160,
-          "dark": { "backgroundColor": "#0A1514" }
+          "imageWidth": 220,
+          "dark": { "backgroundColor": "#F6F5EC" }
         }
       ],
       "expo-sqlite",
