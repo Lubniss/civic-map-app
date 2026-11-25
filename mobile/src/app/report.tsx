@@ -3,12 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import MapView, { Circle, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
 import { CategoryIcon, CategoryPin } from '@/components/CategoryIcon';
+import { AppMap } from '@/components/map/AppMap';
+import type { RingSpec } from '@/components/map/types';
 import { Badge, Button, Card, Field, PressableScale, Segmented } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { distanceM } from '@/lib/distance';
@@ -16,7 +17,6 @@ import { allowedDistance, bestRecentPoint, useLocationHistory, type TrackPoint }
 import { useMyPhone, useRequirePhone } from '@/lib/phone';
 import { useStreetName } from '@/lib/streetName';
 import { submitReport, type ReportResult, type ReporterLocation } from '@/lib/submitReport';
-import { googleMapStyle } from '@/theme/mapStyle';
 import { useTheme } from '@/theme/ThemeProvider';
 import { CATEGORY_KEYS, categories, radius, size, space, type Category } from '@/theme/tokens';
 
@@ -399,15 +399,13 @@ function PinStep({ category, recent, historyPoints, onConfirm }: {
   historyPoints: () => TrackPoint[];
   onConfirm: (spot: { lat: number; lng: number }, recentPoint: TrackPoint | null) => void;
 }) {
-  const { colors, zones, scheme, isDark } = useTheme();
+  const { colors, zones } = useTheme();
   const insets = useSafeAreaInsets();
   const [me, setMe] = useState<TrackPoint | null>(null);
   const [locError, setLocError] = useState<string | null>(null);
   const [center, setCenter] = useState<{ lat: number; lng: number } | null>(null);
   const track = useMemo(() => (recent ? historyPoints() : []), [recent, historyPoints]);
-  const mapStyle = useMemo(() => googleMapStyle(scheme), [scheme]);
   const street = useStreetName(center);
-  const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
     (async () => {
@@ -445,34 +443,23 @@ function PinStep({ category, recent, historyPoints, onConfirm }: {
     );
   }
 
-  const onRegion = (r: Region) => setCenter({ lat: r.latitude, lng: r.longitude });
   // For "recent" reports, draw a few of the places you were in the last hour.
   const trail = recent ? candidates.filter((_, i) => i % Math.max(1, Math.ceil(candidates.length / 25)) === 0) : [];
+  const rings: RingSpec[] = recent
+    ? trail.map((p, i) => ({ key: `${p.t}-${i}`, center: { lat: p.lat, lng: p.lng }, radiusM: allowedDistance(p.accuracy), fill: 'rgba(34, 197, 94, 0.08)' }))
+    : [{ key: 'me', center: { lat: me.lat, lng: me.lng }, radiusM: allowedDistance(me.accuracy), fill: 'rgba(34, 197, 94, 0.08)', stroke: valid ? colors.accent : zones.red, strokeWidth: 1.5 }];
 
   return (
     <View style={styles.fill}>
-      <MapView
-        ref={mapRef}
-        style={styles.fill}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        customMapStyle={Platform.OS === 'android' ? mapStyle : undefined}
-        userInterfaceStyle={isDark ? 'dark' : 'light'}
-        initialRegion={{ latitude: me.lat, longitude: me.lng, latitudeDelta: 0.006, longitudeDelta: 0.006 }}
-        onRegionChangeComplete={onRegion}
-        showsUserLocation
-        showsMyLocationButton={false}
-        toolbarEnabled={false}
-        pitchEnabled={false}
-        rotateEnabled={false}
-      >
-        {recent
-          ? trail.map((p, i) => (
-              <Circle key={`${p.t}-${i}`} center={{ latitude: p.lat, longitude: p.lng }} radius={allowedDistance(p.accuracy)} strokeWidth={0} fillColor="rgba(34, 197, 94, 0.08)" />
-            ))
-          : (
-            <Circle center={{ latitude: me.lat, longitude: me.lng }} radius={allowedDistance(me.accuracy)} strokeWidth={1.5} strokeColor={valid ? colors.accent : zones.red} fillColor="rgba(34, 197, 94, 0.08)" />
-          )}
-      </MapView>
+      <AppMap
+        initialCenter={{ lat: me.lat, lng: me.lng }}
+        initialDelta={0.006}
+        onRegionChange={(r) => setCenter(r.center)}
+        showsUser
+        rotate={false}
+        attributionPosition={{ top: insets.top + 64, right: space.md }}
+        rings={rings}
+      />
 
       {/* Fixed centre crosshair: drag the map under the pin */}
       <View pointerEvents="none" style={styles.crosshair}>

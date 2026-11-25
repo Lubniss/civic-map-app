@@ -1,22 +1,20 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import { router, useLocalSearchParams } from 'expo-router';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/AppText';
-import { CategoryPin } from '@/components/CategoryIcon';
 import { useTabBarTop } from '@/components/FloatingTabBar';
-import { HeatLayer } from '@/components/MapLayers';
+import { AppMap } from '@/components/map/AppMap';
+import type { AppMapRef, PinSpec, RouteLineSpec } from '@/components/map/types';
 import { Badge, Button, Card } from '@/components/ui';
 import { api } from '@/lib/api';
 import { FALLBACK_REGION } from '@/lib/geo';
 import { useHeatmap } from '@/lib/queries';
 import { useStreetName } from '@/lib/streetName';
 import type { Bbox, Place, PlannedRoute, RoutePlan, RouteRiskLevel } from '@/lib/types';
-import { googleMapStyle } from '@/theme/mapStyle';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, size, space, type as typeScale, type BadgeName } from '@/theme/tokens';
 
@@ -45,11 +43,10 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export default function RoutesScreen() {
-  const { colors, badges, scheme, isDark } = useTheme();
+  const { colors, badges, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarTop = useTabBarTop();
-  const mapRef = useRef<MapView>(null);
-  const mapStyle = useMemo(() => googleMapStyle(scheme), [scheme]);
+  const mapRef = useRef<AppMapRef>(null);
 
   const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
   const [locError, setLocError] = useState(false);
@@ -78,7 +75,7 @@ export default function RoutesScreen() {
       const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const here = { lat: p.coords.latitude, lng: p.coords.longitude };
       setMe(here);
-      mapRef.current?.animateToRegion({ latitude: here.lat, longitude: here.lng, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 400);
+      mapRef.current?.moveTo(here, 0.03, 400);
     })().catch(() => setLocError(true));
   }, []);
 
@@ -100,11 +97,10 @@ export default function RoutesScreen() {
       }),
     onSuccess: (p) => {
       setSelected('safest');
-      const coords = [...p.fastest.coordinates, ...p.safest.coordinates].map((c) => ({ latitude: c.lat, longitude: c.lng }));
-      mapRef.current?.fitToCoordinates(coords, {
-        edgePadding: { top: insets.top + 190, right: 40, bottom: tabBarTop + 260, left: 40 },
-        animated: true,
-      });
+      mapRef.current?.fitTo(
+        [...p.fastest.coordinates, ...p.safest.coordinates],
+        { top: insets.top + 190, right: 40, bottom: tabBarTop + 260, left: 40 },
+      );
     },
   });
 
@@ -155,47 +151,40 @@ export default function RoutesScreen() {
   const heat = useHeatmap(tripBbox, !!p);
 
   // Alert symbols: everything near the selected route (full size), plus what only the other route passes (smaller).
-  const pins = useMemo(() => {
+  const pins: PinSpec[] = useMemo(() => {
     if (!shown) return [];
     const mine = new Set(shown.alerts.map((a) => a.id));
     return [
-      ...shown.alerts.map((a) => ({ ...a, onSelected: true })),
-      ...(other?.alerts.filter((a) => !mine.has(a.id)).map((a) => ({ ...a, onSelected: false })) ?? []),
+      ...shown.alerts.map((a) => ({ key: `${a.id}-s`, lat: a.lat, lng: a.lng, category: a.category, small: false })),
+      ...(other?.alerts.filter((a) => !mine.has(a.id)).map((a) => ({ key: `${a.id}-o`, lat: a.lat, lng: a.lng, category: a.category, small: true })) ?? []),
     ];
   }, [shown, other]);
 
+  // The unselected route is drawn first (underneath) and faded; tapping it selects it.
+  const lines: RouteLineSpec[] = useMemo(() => {
+    if (!p) return [];
+    if (p.sameRoute) return [{ coords: p.safest.coordinates, color: routeColors.safest }];
+    const otherWhich: Which = selected === 'safest' ? 'fastest' : 'safest';
+    return [
+      { coords: p[otherWhich].coordinates, color: routeColors[otherWhich], dashed: otherWhich === 'fastest', faded: true, onPress: () => setSelected(otherWhich) },
+      { coords: p[selected].coordinates, color: routeColors[selected], dashed: selected === 'fastest' },
+    ];
+  }, [p, selected, routeColors.safest, routeColors.fastest]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <View style={styles.fill}>
-      <MapView
+      <AppMap
         ref={mapRef}
-        style={styles.fill}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        customMapStyle={Platform.OS === 'android' ? mapStyle : undefined}
-        userInterfaceStyle={isDark ? 'dark' : 'light'}
-        initialRegion={FALLBACK_REGION}
-        showsUserLocation
-        showsMyLocationButton={false}
-        toolbarEnabled={false}
-        pitchEnabled={false}
-        onRegionChangeComplete={(r: Region) => setCenter({ lat: r.latitude, lng: r.longitude })}
-      >
-        {p ? <HeatLayer points={heat.data ?? []} /> : null}
-        {p && !p.sameRoute ? (
-          <>
-            {/* The unselected route is drawn first (underneath) and faded. */}
-            <RouteLine route={selected === 'safest' ? p.fastest : p.safest} color={selected === 'safest' ? routeColors.fastest : routeColors.safest} dashed={selected === 'safest'} faded onPress={() => setSelected(selected === 'safest' ? 'fastest' : 'safest')} />
-            <RouteLine route={shown!} color={routeColors[selected]} dashed={selected === 'fastest'} />
-          </>
-        ) : p ? (
-          <RouteLine route={p.safest} color={routeColors.safest} />
-        ) : null}
-        {pins.map((a) => <SmallPin key={`${a.id}-${a.onSelected ? 's' : 'o'}`} lat={a.lat} lng={a.lng} category={a.category} small={!a.onSelected} />)}
-        {destination && !picking ? (
-          <Marker coordinate={{ latitude: destination.lat, longitude: destination.lng }} anchor={{ x: 0.5, y: 1 }} tracksViewChanges={false}>
-            <Ionicons name="flag" size={30} color={colors.text} />
-          </Marker>
-        ) : null}
-      </MapView>
+        initialCenter={{ lat: FALLBACK_REGION.latitude, lng: FALLBACK_REGION.longitude }}
+        initialDelta={FALLBACK_REGION.longitudeDelta}
+        showsUser
+        attributionPosition={{ bottom: tabBarTop + 6, left: space.lg }}
+        onRegionChange={(r) => setCenter(r.center)}
+        heat={p ? heat.data ?? [] : null}
+        routes={lines}
+        pins={pins}
+        flag={destination && !picking ? { lat: destination.lat, lng: destination.lng } : null}
+      />
 
       {picking ? (
         <View pointerEvents="none" style={styles.crosshair}>
@@ -327,38 +316,6 @@ export default function RoutesScreen() {
         ) : null}
       </View>
     </View>
-  );
-}
-
-const RouteLine = memo(function RouteLine({ route, color, dashed, faded, onPress }: {
-  route: PlannedRoute; color: string; dashed?: boolean; faded?: boolean; onPress?: () => void;
-}) {
-  return (
-    <Polyline
-      coordinates={route.coordinates.map((c) => ({ latitude: c.lat, longitude: c.lng }))}
-      strokeColor={faded ? `${color}88` : color}
-      strokeWidth={faded ? 4 : 6}
-      lineDashPattern={dashed ? [12, 8] : undefined}
-      lineCap="round"
-      lineJoin="round"
-      zIndex={faded ? 1 : 2}
-      tappable={!!onPress}
-      onPress={onPress}
-    />
-  );
-});
-
-function SmallPin({ lat, lng, category, small }: { lat: number; lng: number; category: PlannedRoute['alerts'][number]['category']; small?: boolean }) {
-  const [track, setTrack] = useState(true);
-  useEffect(() => {
-    setTrack(true);
-    const t = setTimeout(() => setTrack(false), 600);
-    return () => clearTimeout(t);
-  }, [small]);
-  return (
-    <Marker coordinate={{ latitude: lat, longitude: lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={track} zIndex={small ? 3 : 4}>
-      <CategoryPin category={category} size={small ? 22 : 30} dimmed={small} />
-    </Marker>
   );
 }
 

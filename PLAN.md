@@ -446,6 +446,55 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 
 **Security reminder (user chose not to rotate yet):** the Supabase secret key and the ORS key were shown in a screenshot on 2026-11-25. Rotate both before sharing the app publicly: create a new Supabase secret key and revoke the old one, and regenerate the ORS key.
 
+## Phase 7c (go ahead 2026-11-25; iPhone stays on Apple Maps): Android map → MapLibre + OpenFreeMap
+**Progress:**
+- **Code done:** one shared `AppMap` component (`src/components/map/`).
+  - `AppMap.android.tsx` uses MapLibre; `AppMap.ios.tsx` keeps today's react-native-maps code. The three screens use plain props (alerts, heat, routes, pins, flag, rings), so they stay shared.
+  - The Google-only `theme/mapStyle.ts` and `app.config.js` were removed.
+  - `eas.json` now has a `development` profile (dev-client APK) and a `preview` profile (shareable APK).
+- **Checks:**
+  - Typecheck is clean, and both the Android and iOS bundles export.
+  - The iOS bundle contains no MapLibre code, so iPhone Expo Go is unaffected.
+- **Next:** EAS login (user), then the dev build and testing on the phone.
+
+**Why:** the user couldn't get a Google Maps key (Google Cloud needs billing and a card). Google Maps in an installed Android app needs that key, and without it the map is blank. The user chose option 1: MapLibre, a free, open-source native map engine, with OpenFreeMap map data (no key, no sign-up, no usage limits; attribution is shown automatically).
+
+**What changes (Android only):**
+- **Library:** `@maplibre/maplibre-react-native` v11 (new architecture, React Native ≥ 0.80, so it fits SDK 58). Added with `npx expo install`, plus its config plugin in app.json.
+- **Map style:**
+  - light theme: OpenFreeMap **Positron** (calm and pale, no shop/place icons, matching the earlier "no OSM place icons" feedback)
+  - dark theme: OpenFreeMap **Dark**
+  - Our pastel tints can be tweaked later by editing the style.
+- **Screens rewritten for Android:** Map tab, Routes tab, and the small map on the Report screen.
+- **Each feature, mapped to MapLibre:**
+  - **Heatmap:** MapLibre's built-in heatmap layer, keeping the same green → yellow → red stops and the bigger green and yellow areas.
+  - **Red zones (150 m) and grey zones:** real-size circle shapes, drawn as filled polygons so they stay 150 m at every zoom.
+  - **Alert pins:** the same category pins as now; tapping opens the alert screen.
+  - **Routes:** Safest as a solid green line, Fastest as a dashed line; tapping a line highlights it.
+  - **The rest:** "my location" dot, follow-me, the long-press or tap to pick a spot, and the camera moving to search results.
+- **No Google key anywhere.** The Google Maps key setup from 7b (`app.config.js`) is removed.
+
+**iPhone (decision for the user):**
+- **(Recommended) Keep the iPhone on today's Apple Maps code in Expo Go.** The map screens are split into `.android.tsx` (MapLibre) and `.ios.tsx` (today's code, unchanged) files, so iPhone testing keeps working with no Apple account.
+  - Downside: every future map feature is written twice.
+- **Or MapLibre everywhere,** with one codebase.
+  - Downside: the iPhone can't run the app at all until there's a $99/year Apple developer account, because MapLibre doesn't work in Expo Go.
+
+**How Android testing changes:** MapLibre doesn't run in Expo Go, so Android moves to a **development build**.
+- It's a one-time APK of our own app with `expo-dev-client`, built on EAS (free).
+- After that it works like Expo Go: `npx expo start`, scan, and changes appear live.
+- A new dev build is needed only when a native library is added.
+- The shareable **preview APK** (the real installable app) comes from the same setup.
+
+**Steps:**
+1. Install MapLibre and `expo-dev-client`, add the plugins, and remove the Google key config.
+2. Rewrite the map screens for Android. Run typecheck and lint.
+3. The user logs in to EAS once (`npx eas-cli@latest login`); I set the EAS "preview" and "development" environment variables (Supabase URL, anon key, API URL).
+4. Build the development APK. The user installs it and tests every map feature.
+5. Build the preview APK: the shareable "Civic Map" app.
+
+**Risk:** if MapLibre doesn't build with SDK 58 / RN 0.88 (the docs say RN ≥ 0.80 but don't name 0.88), I stop and report before trying anything else.
+
 ## Phase 7 (original, Render; replaced, kept for reference)
 **As built:**
 - **`render.yaml` (Blueprint)** at the repo root:

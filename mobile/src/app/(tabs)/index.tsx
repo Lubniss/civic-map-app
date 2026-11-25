@@ -1,23 +1,22 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
-import MapView, { PROVIDER_GOOGLE, type Region } from 'react-native-maps';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertPreview, AlertPreviewHeader } from '@/components/AlertPreview';
 import { SummaryButton, SummaryDetails, SummaryHeader, type PillState } from '@/components/AreaSummary';
 import { AppText } from '@/components/AppText';
 import { BottomSheet } from '@/components/BottomSheet';
 import { useTabBarTop } from '@/components/FloatingTabBar';
-import { AlertMarker, HeatLayer } from '@/components/MapLayers';
+import { AppMap } from '@/components/map/AppMap';
+import type { AppMapRef, MapRegion } from '@/components/map/types';
 import { SosButton } from '@/components/SosButton';
 import { ZoneBanner } from '@/components/ZoneBanner';
 import { ApiError } from '@/lib/api';
-import { FALLBACK_REGION, isBboxTooLarge, regionToBbox } from '@/lib/geo';
+import { FALLBACK_REGION, isBboxTooLarge } from '@/lib/geo';
 import { useMyLocation } from '@/lib/location';
 import { useAreaSummary, useHeatmap, useMapAlerts } from '@/lib/queries';
 import type { Bbox, MapAlert } from '@/lib/types';
-import { googleMapStyle } from '@/theme/mapStyle';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, size, space } from '@/theme/tokens';
 
@@ -25,10 +24,10 @@ const NEARBY_DELTA = 0.02; // ~2 km across
 const SEARCH_HEIGHT = 48;
 
 export default function MapScreen() {
-  const { colors, scheme, isDark } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarTop = useTabBarTop();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<AppMapRef>(null);
   const { location, refresh } = useMyLocation();
 
   const [bbox, setBbox] = useState<Bbox | null>(null);
@@ -46,14 +45,11 @@ export default function MapScreen() {
   useEffect(() => {
     if (location.status === 'ready' && !centredOnce.current) {
       centredOnce.current = true;
-      mapRef.current?.animateToRegion(
-        { latitude: location.coords.latitude, longitude: location.coords.longitude, latitudeDelta: NEARBY_DELTA, longitudeDelta: NEARBY_DELTA },
-        500,
-      );
+      mapRef.current?.moveTo({ lat: location.coords.latitude, lng: location.coords.longitude }, NEARBY_DELTA, 500);
     }
   }, [location]);
 
-  const onRegionChangeComplete = useCallback((r: Region) => setBbox(regionToBbox(r)), []);
+  const onRegionChange = useCallback((r: MapRegion) => setBbox(r.bbox), []);
 
   const goToMe = useCallback(async () => {
     const coords = location.status === 'ready' ? location.coords : await refresh();
@@ -61,7 +57,7 @@ export default function MapScreen() {
       showHint('Turn on location to see alerts around you');
       return;
     }
-    mapRef.current?.animateToRegion({ latitude: coords.latitude, longitude: coords.longitude, latitudeDelta: NEARBY_DELTA, longitudeDelta: NEARBY_DELTA }, 400);
+    mapRef.current?.moveTo({ lat: coords.latitude, lng: coords.longitude }, NEARBY_DELTA, 400);
   }, [location, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Small toast for hints ("Hold to call 112", location off…)
@@ -87,33 +83,24 @@ export default function MapScreen() {
     return summary.data ? { kind: 'ready', summary: summary.data } : { kind: 'loading' };
   }, [bbox, summary.isPending, summary.isError, summary.error, summary.data]);
 
-  const mapStyle = useMemo(() => googleMapStyle(scheme), [scheme]);
   const searchTop = insets.top + space.sm;
   const controlsTop = searchTop + SEARCH_HEIGHT + space.md;
   const bottomRowY = tabBarTop + size.fabLift + space.lg;
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <MapView
+      <AppMap
         ref={mapRef}
-        style={styles.fill}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        customMapStyle={Platform.OS === 'android' ? mapStyle : undefined}
-        userInterfaceStyle={isDark ? 'dark' : 'light'}
-        initialRegion={FALLBACK_REGION}
-        onRegionChangeComplete={onRegionChangeComplete}
-        showsUserLocation={location.status === 'ready'}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        toolbarEnabled={false}
-        pitchEnabled={false}
-        moveOnMarkerPress={false}
-        mapPadding={{ top: controlsTop, right: 0, bottom: tabBarTop + size.fabLift, left: 0 }}
-      >
-        {mode === 'alerts'
-          ? (alerts.data ?? []).map((a) => <AlertMarker key={a.id} alert={a} onPress={setSelected} />)
-          : <HeatLayer points={heat.data ?? []} />}
-      </MapView>
+        initialCenter={{ lat: FALLBACK_REGION.latitude, lng: FALLBACK_REGION.longitude }}
+        initialDelta={FALLBACK_REGION.longitudeDelta}
+        onRegionChange={onRegionChange}
+        showsUser={location.status === 'ready'}
+        padding={{ top: controlsTop, right: 0, bottom: tabBarTop + size.fabLift, left: 0 }}
+        attributionPosition={{ bottom: tabBarTop + 6, left: space.lg }}
+        alerts={mode === 'alerts' ? alerts.data ?? [] : []}
+        onAlertPress={setSelected}
+        heat={mode === 'heat' ? heat.data ?? [] : null}
+      />
 
       {/* Top: search bar. Tapping it switches to Routes with "Where to?" focused. */}
       <Pressable
