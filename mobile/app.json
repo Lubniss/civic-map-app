@@ -49,6 +49,15 @@
         {
           "locationWhenInUsePermission": "Civic Map uses your location to show alerts around you and to check you are near a problem when you report it."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false
+          }
+        }
       ]
     ],
     "experiments": {
