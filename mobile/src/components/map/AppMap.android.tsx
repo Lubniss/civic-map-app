@@ -35,6 +35,7 @@ const HEAT_COLOR: ExpressionSpecification = [
 ];
 
 const round = (n: number) => Math.round(n * 10_000) / 10_000;
+const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
 
 export function AppMap({ ref, ...p }: AppMapProps & { ref?: Ref<AppMapRef> }) {
   const { colors, zones, isDark } = useTheme();
@@ -43,7 +44,8 @@ export function AppMap({ ref, ...p }: AppMapProps & { ref?: Ref<AppMapRef> }) {
 
   useImperativeHandle(ref, () => ({
     moveTo(center, delta, durationMs = 400) {
-      cameraRef.current?.easeTo({ center: [center.lng, center.lat], zoom: deltaToZoom(delta), duration: durationMs });
+      // padding 0 also clears the padding fitTo leaves on the camera (MapLibre keeps it), so "centre" is the middle again.
+      cameraRef.current?.easeTo({ center: [center.lng, center.lat], zoom: deltaToZoom(delta), padding: NO_PADDING, duration: durationMs });
     },
     fitTo(coords, pad) {
       if (!coords.length) return;
@@ -57,10 +59,11 @@ export function AppMap({ ref, ...p }: AppMapProps & { ref?: Ref<AppMapRef> }) {
   }), []);
 
   const onRegionDidChange = (e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
-    const { center, bounds } = e.nativeEvent;
-    const [west, south, east, north] = bounds;
+    const [west, south, east, north] = e.nativeEvent.bounds;
     p.onRegionChange?.({
-      center: { lat: center[1], lng: center[0] },
+      // The middle of what's on screen. Not the camera centre: after fitTo, MapLibre keeps the fit's padding
+      // on the camera, which moves its "centre" away from the middle (the picked flag jumped up).
+      center: { lat: (south + north) / 2, lng: (west + east) / 2 },
       bbox: {
         minLng: round(Math.max(west, -180)),
         minLat: round(Math.max(south, -90)),
