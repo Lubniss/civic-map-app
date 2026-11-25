@@ -437,6 +437,11 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - An EAS Build "preview" profile produces a `.apk` you can install on any Android phone and share. It needs a free Expo account and no card.
 - The app name, icon and package id are set in `app.json` (e.g. `com.civicmap.app`).
 - **iPhone:** installing outside the App Store needs Apple's paid developer account ($99/year), so iPhone stays on Expo Go for now.
+- **Google Maps key (the user chose to get one, 2026-11-25):** Android builds draw the map with Google Maps.
+  - The key goes in through `mobile/app.config.js` as the `react-native-maps` plugin's `androidGoogleMapsApiKey`, read from the `GOOGLE_MAPS_API_KEY` environment variable.
+  - `mobile/eas.json` has a `preview` profile that builds an APK and uses the EAS "preview" environment.
+  - EAS cloud builds don't upload `mobile/.env` (it's git-ignored). So `GOOGLE_MAPS_API_KEY` (visibility sensitive) and the three `EXPO_PUBLIC_*` values are set as EAS "preview" environment variables.
+  - Once the first build has created the signing keystore, the key is locked to `com.civicmap.app` plus that build's SHA-1 fingerprint.
 - **Note:** a real build also allows the phase 8 extras (real heatmap on iPhone with Google Maps, push and background alerts). Those still need a Google Maps API key for Android builds, which is checked during 7b.
 
 **Security reminder (user chose not to rotate yet):** the Supabase secret key and the ORS key were shown in a screenshot on 2026-11-25. Rotate both before sharing the app publicly: create a new Supabase secret key and revoke the old one, and regenerate the ORS key.
