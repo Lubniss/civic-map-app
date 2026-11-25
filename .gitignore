@@ -20,3 +20,8 @@ npm-debug.log*
 *.log
 .DS_Store
 Thumbs.db
+
+# generated copy of the compiled server for the Supabase Edge Function
+supabase/functions/api/server/
+supabase/.temp/
+server/supabase/.temp/

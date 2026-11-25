@@ -16,7 +16,9 @@
     "test": "vitest run",
     "smoke": "node --env-file=.env --env-file=../mobile/.env scripts/smoke.mjs",
     "demo": "node --env-file=.env scripts/demo-data.mjs",
-    "route-smoke": "node --env-file=.env --env-file=../mobile/.env scripts/route-smoke.mjs"
+    "route-smoke": "node --env-file=.env --env-file=../mobile/.env scripts/route-smoke.mjs",
+    "edge:build": "npm run build && node scripts/edge-build.mjs",
+    "edge:deploy": "npm run edge:build && npx supabase@3.4.0 functions deploy api --no-verify-jwt --use-api --remote=iwztrncxwghhziemfwfw --workdir .."
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",

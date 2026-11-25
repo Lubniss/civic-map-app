@@ -10,7 +10,7 @@
 | 4. Mobile core app | In progress. Step 1 done (app, theme, sign-in, tab bar). Step 2 done (live map: pins, red/grey zones, heatmap, summary pill + sheet, SOS hold, locate; calmer polish). Step 3 done (report flow: category â†’ now/recent â†’ Call 112 â†’ crosshair pin with 300 m check and street name â†’ details with camera photo â†’ result). Step 4 done (full alert detail screen with photos, reports, fix progress, Confirm it's fixed, Share; My Reports tab with `GET /me/reports`; zone warning banner; place ground tints). Heatmap is soft multi-ring heat clouds on both platforms. Done |
 | 5. Phone SMS check | Code done: server switch `REQUIRE_PHONE_VERIFICATION` (smoke 45/45 with the switch on and off), Verify phone screen, Profile status, report and fix gates. **Real SMS deferred by the user**: the switch stays off (anyone signed in can report). To finish later: set up Twilio Verify (steps below), test, then set `REQUIRE_PHONE_VERIFICATION=true` |
 | 6. Fastest vs. Safest Route | Done: `003_routes.sql` applied; unit tests 52/52; live route test 11/11 (3 red zones on the fastest route, the safest avoids 2: risk 135 -> 24.5, +1 min). Needs a check on the phones |
-| 7. Go live without a PC: server → Supabase Edge Functions + Android APK | **Changed by the user:** Render needs a card, and the goal is a real installable mobile app. Not started: see "Phase 7 (revised)" |
+| 7. Go live without a PC: server → Supabase Edge Functions + Android APK | **7a done:** the API runs on Supabase (smoke 45/45 and route-smoke 11/11 online). 7b (APK) is next: see "Phase 7 (revised)" |
 | 8. Notifications (push + zone-entry alerts) | Not started |
 
 ## Context
@@ -423,6 +423,15 @@ The user picks a destination and a mode (walking or driving). The app shows two 
 - **Tests:** the existing `npm run smoke` and `npm run route-smoke` run against the deployed function (`API_URL=...`), plus the unit tests.
 - **User needs:** to sign in once with the Supabase CLI (`npx supabase login`, which opens a browser). No card.
 - **Rate limits:** Express's per-IP and per-user limiters don't carry over, so the 20 reports a day (already enforced with a database count) stays, and the route-plan limit becomes a simple database-backed check.
+
+**7a, as built (done 2026-11-25):**
+- Supabase's Deno runtime runs Express itself, so no router rewrite was needed. `npm run edge:build` copies the compiled `server/dist` into `supabase/functions/api/server/` (git-ignored), and `supabase/functions/api/index.ts` mounts `createApp()` at `/api`.
+- `deno.json` pins the npm packages.
+- Deployed with `--no-verify-jwt`.
+- The per-IP and per-user rate limiters still run, but in memory per function instance, so they're looser than before. The 20-reports-a-day database check is unchanged.
+- Live URL: `https://iwztrncxwghhziemfwfw.supabase.co/functions/v1/api` (in `mobile/.env`).
+- Verified online: `/health` 200, smoke 45/45, route-smoke 11/11.
+- **Redeploy after server changes:** in `server/`, run `npm run edge:build`, then `npx supabase@3.4.0 functions deploy api --no-verify-jwt --use-api --remote=iwztrncxwghhziemfwfw`.
 
 **Step 7b: installable Android app (APK).**
 - An EAS Build "preview" profile produces a `.apk` you can install on any Android phone and share. It needs a free Expo account and no card.

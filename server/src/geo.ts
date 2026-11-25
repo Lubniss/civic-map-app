@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { ApiError } from './errors.js';
 
 export interface Bbox {
