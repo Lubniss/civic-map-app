@@ -457,7 +457,8 @@ The user picks a destination and a mode (walking or driving). The app shows two 
   - The iOS bundle contains no MapLibre code, so iPhone Expo Go is unaffected.
 - **Expo project:** `@lubniss/civic-map`. The Android keystore is held by Expo. The EAS env vars `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (sensitive) and `EXPO_PUBLIC_API_URL` are set for the development and preview environments.
 - **Dev build:** done and tested by the user on Android ("Works", 2026-11-25).
-- **Preview APK:** built 2026-11-25 with the flag-jump fix (EAS build 474c61ac). This is the shareable Civic Map app. Rebuild with `npx eas-cli@latest build --platform android --profile preview` in `mobile/` (Git must be on PATH).
+- **Preview APK:** built 2026-11-25 with the flag-jump fix (EAS build 474c61ac). **It closes right after launch on the user's phone. Cause not found yet**; the next step is the phone's crash log over USB (adb logcat).
+- **Expo Go stopgap (user request, 2026-11-25):** `AppMap.android.tsx` now picks the engine at launch. Inside Expo Go it uses react-native-maps (`AppMap.rnmaps.tsx`, Google Maps, no key needed in Expo Go); in the installed app it uses MapLibre (`AppMap.maplibre.tsx`). Start with `npx expo start --go`. Rebuild with `npx eas-cli@latest build --platform android --profile preview` in `mobile/` (Git must be on PATH).
 
 **Why:** the user couldn't get a Google Maps key (Google Cloud needs billing and a card). Google Maps in an installed Android app needs that key, and without it the map is blank. The user chose option 1: MapLibre, a free, open-source native map engine, with OpenFreeMap map data (no key, no sign-up, no usage limits; attribution is shown automatically).
 
